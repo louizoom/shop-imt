@@ -1,0 +1,20 @@
+[project]
+name = "shop-imt-backend"
+version = "1.0.0"
+description = "Lambdas Python de la boutique SHOP'IMT"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+
+[tool.ruff]
+line-length = 140
+target-version = "py312"
+extend-exclude = ["backend/tests/fakeaws"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I", "UP"]
+ignore = ["E501", "E731"]   # longueur : gabarits HTML des e-mails ; petits lambdas de mise en forme
+
+[tool.ruff.lint.per-file-ignores]
+"backend/tests/parcours.py" = ["E401", "E402", "E701", "E702", "E741", "I001"]   # script de scénario volontairement compact

@@ -1,0 +1,18 @@
+# Mises à jour automatiques des dépendances, regroupées une fois par mois pour limiter le bruit
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: monthly
+    groups:
+      front:
+        patterns: ["*"]
+  - package-ecosystem: terraform
+    directories: ["/infra/envs/dev", "/infra/envs/prod", "/infra/bootstrap"]
+    schedule:
+      interval: monthly
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

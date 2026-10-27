@@ -1,0 +1,14 @@
+{
+  "name": "SHOP'IMT",
+  "short_name": "SHOP'IMT",
+  "description": "La boutique des étudiants de l'IMT",
+  "lang": "fr",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EDF3F4",
+  "theme_color": "#14223C",
+  "icons": [
+    { "src": "img/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" },
+    { "src": "img/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

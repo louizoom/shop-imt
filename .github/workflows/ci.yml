@@ -1,0 +1,101 @@
+# Intégration continue : à chaque pull request et à chaque push sur main.
+# Lambdas (ruff + pytest), front (lint, types, tests, build), Terraform (fmt, validate, plan dev et prod).
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Lambdas Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest ruff
+      - run: ruff check .
+      - run: pytest
+
+  frontend:
+    name: Front Vue
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build # vue-tsc (types) puis vite build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: front
+          path: frontend/dist
+          retention-days: 3
+
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    needs: frontend # le module publie frontend/dist dans S3 : le plan en a besoin
+    permissions:
+      contents: read
+      id-token: write # jeton OIDC GitHub échangé contre un rôle IAM en lecture seule
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: front
+          path: frontend/dist
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.16"
+      - run: terraform fmt -check -recursive infra
+      - name: Validate
+        run: |
+          for racine in infra/bootstrap infra/envs/dev infra/envs/prod; do
+            terraform -chdir=$racine init -backend=false -input=false
+            terraform -chdir=$racine validate
+          done
+      - name: Connexion AWS (rôle plan)
+        if: vars.AWS_ROLE_PLAN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_PLAN }}
+          aws-region: eu-west-3
+      - name: Plan dev et prod
+        if: vars.AWS_ROLE_PLAN != ''
+        run: |
+          for env in dev prod; do
+            terraform -chdir=infra/envs/$env init -input=false
+            terraform -chdir=infra/envs/$env plan -input=false -no-color -lock-timeout=60s -out=tfplan > plan-$env.txt 2>&1 || { cat plan-$env.txt; exit 1; }
+            {
+              echo "### Terraform plan : $env"
+              echo '```'
+              grep -E '^Plan:|^No changes|will be (created|destroyed|updated|replaced)|must be replaced' plan-$env.txt || true
+              echo '```'
+              echo "<details><summary>Plan complet ($env)</summary>"
+              echo
+              echo '```hcl'
+              cat plan-$env.txt
+              echo '```'
+              echo "</details>"
+            } >> "$GITHUB_STEP_SUMMARY"
+          done

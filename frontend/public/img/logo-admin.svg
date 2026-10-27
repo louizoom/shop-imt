@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 64" role="img" aria-label="SHOP'IMT">
+  <!-- Variante du logo SHOP'IMT pour la console admin (thème sombre et rouge). -->
+  <g transform="translate(4 4)">
+    <rect width="56" height="56" rx="14" fill="#2a070d" stroke="#ff2e45" stroke-width="1.5"/>
+    <path d="M20 22v-4a8 8 0 0 1 16 0v4" fill="none" stroke="#ff2e45" stroke-width="3.2" stroke-linecap="round"/>
+    <path d="M13 22h30l-2.4 22.5a3 3 0 0 1-3 2.5H18.4a3 3 0 0 1-3-2.5z" fill="#ff2e45"/>
+    <text x="28" y="40.5" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="11.5" fill="#fff" letter-spacing=".5">IMT</text>
+  </g>
+  <text x="72" y="42" font-family="Helvetica, Arial, sans-serif" font-weight="700" font-size="30" letter-spacing="-.5" fill="#f6e8ea">SHOP<tspan fill="#ff2e45">'</tspan>IMT</text>
+</svg>

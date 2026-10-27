@@ -1,0 +1,58 @@
+# Déploiement : dev à chaque push sur main, prod à la demande (onglet Actions > Deploy > Run workflow).
+# L'environnement GitHub « prod » peut exiger une validation manuelle (Settings > Environments).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environnement:
+        description: Environnement à déployer
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy:
+    name: Déployer ${{ inputs.environnement || 'dev' }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environnement || 'dev' }}
+    concurrency:
+      group: deploy-${{ inputs.environnement || 'dev' }}
+      cancel-in-progress: false
+    env:
+      ENVIRONNEMENT: ${{ inputs.environnement || 'dev' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build du front
+        working-directory: frontend
+        run: npm ci && npm run build
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~1.16"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_DEPLOY }}
+          aws-region: eu-west-3
+      - name: Plan
+        working-directory: infra/envs/${{ env.ENVIRONNEMENT }}
+        run: |
+          terraform init -input=false
+          terraform plan -input=false -no-color -out=tfplan | tee plan.txt
+          { echo "### Plan $ENVIRONNEMENT"; echo '```'; grep -E '^Plan:|^No changes' plan.txt || true; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Apply
+        working-directory: infra/envs/${{ env.ENVIRONNEMENT }}
+        run: terraform apply -input=false tfplan
+      - name: Adresse du site
+        working-directory: infra/envs/${{ env.ENVIRONNEMENT }}
+        run: echo "Site $ENVIRONNEMENT : $(terraform output -raw site_url)" >> "$GITHUB_STEP_SUMMARY"
