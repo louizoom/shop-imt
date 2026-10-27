@@ -1,0 +1,29 @@
+# Terraform : jamais d'état ni de variables personnelles dans le dépôt (état dans S3, réglages dans SSM)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+tfplan
+*.tfplan
+.build/
+crash.log
+backend_override.tf
+
+# Front
+node_modules/
+frontend/dist/
+coverage/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.venv/
+
+# Divers
+.DS_Store
+.env
+.env.*
+*.log
