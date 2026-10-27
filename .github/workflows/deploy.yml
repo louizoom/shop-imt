@@ -55,4 +55,5 @@ jobs:
         run: terraform apply -input=false tfplan
       - name: Adresse du site
         working-directory: infra/envs/${{ env.ENVIRONNEMENT }}
-        run: echo "Site $ENVIRONNEMENT : $(terraform output -raw site_url)" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Site $ENVIRONNEMENT : $(terraform output -raw site_url)" >> "$GITHUB_STEP_SUMMARY"
