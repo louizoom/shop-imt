@@ -76,7 +76,7 @@ jobs:
           done
       - name: Connexion AWS (rôle plan)
         if: vars.AWS_ROLE_PLAN != ''
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ vars.AWS_ROLE_PLAN }}
           aws-region: eu-west-3
