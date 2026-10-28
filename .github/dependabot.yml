@@ -1,18 +1,32 @@
-# Mises à jour automatiques des dépendances, regroupées une fois par mois pour limiter le bruit
+# Mises à jour des dépendances : une seule pull request par mois, vers dev (testée sur l'environnement dev
+# avant d'aller en prod). Les montées de version majeures sont ignorées : elles se font à la main.
 version: 2
+multi-ecosystem-groups:
+  mensuel:
+    schedule:
+      interval: monthly
 updates:
   - package-ecosystem: npm
     directory: /frontend
-    schedule:
-      interval: monthly
-    groups:
-      front:
-        patterns: ["*"]
+    target-branch: dev
+    multi-ecosystem-group: mensuel
+    patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: terraform
     directories: ["/infra/envs/dev", "/infra/envs/prod", "/infra/bootstrap"]
-    schedule:
-      interval: monthly
+    target-branch: dev
+    multi-ecosystem-group: mensuel
+    patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
-    schedule:
-      interval: monthly
+    target-branch: dev
+    multi-ecosystem-group: mensuel
+    patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
