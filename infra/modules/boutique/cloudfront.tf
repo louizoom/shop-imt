@@ -81,7 +81,25 @@ resource "aws_cloudfront_function" "langue" {
   runtime = "cloudfront-js-2.0"
   comment = "Cookie lang (fr/en) d'après Accept-Language"
   publish = true
-  code    = file("${path.module}/fonctions/langue.js")
+  code    = <<-JS
+    // CloudFront Function (viewer-response) : langue du site choisie à la périphérie, sans Lambda.
+    // Première visite : lit Accept-Language et dépose le cookie « lang » (fr ou en), que le front lit
+    // au démarrage. Un choix manuel dans le site remplace ce cookie. Gratuit jusqu'à 2 M d'appels/mois.
+    function handler(event) {
+      var request = event.request;
+      var response = event.response;
+      if (request.cookies.lang) {
+        return response;
+      }
+      var accept = request.headers['accept-language'] ? request.headers['accept-language'].value.toLowerCase() : '';
+      // La langue citée en premier l'emporte (« en-US,en;q=0.9,fr;q=0.8 » -> en) ; français par défaut
+      var fr = accept.indexOf('fr');
+      var en = accept.indexOf('en');
+      var langue = en !== -1 && (fr === -1 || en < fr) ? 'en' : 'fr';
+      response.cookies.lang = { value: langue, attributes: 'Path=/; Max-Age=31536000; SameSite=Lax; Secure' };
+      return response;
+    }
+  JS
 }
 
 # Adresses du front (/suivi/<id>, /compte, /admin) servies par index.html : routage côté navigateur
@@ -90,7 +108,21 @@ resource "aws_cloudfront_function" "routage" {
   runtime = "cloudfront-js-2.0"
   comment = "Chemins sans extension vers index.html (Vue Router)"
   publish = true
-  code    = file("${path.module}/fonctions/routage.js")
+  code    = <<-JS
+    // CloudFront Function (viewer-request) : routage du front (Vue Router, historique HTML5).
+    // Une adresse sans extension (/suivi/<id>, /compte, /admin) est servie par index.html, le routeur
+    // du navigateur affiche ensuite la bonne page. Les fichiers (/assets/x.js, /img/p001.jpg) passent tels quels.
+    // Les routes de l'API (/produits, /commandes*, /compte/*, /admin/*) ont leurs propres comportements :
+    // cette fonction ne les voit jamais.
+    function handler(event) {
+      var request = event.request;
+      var dernier = request.uri.split('/').pop();
+      if (dernier.indexOf('.') === -1) {
+        request.uri = '/index.html';
+      }
+      return request;
+    }
+  JS
 }
 
 resource "aws_cloudfront_distribution" "site" {
