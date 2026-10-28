@@ -64,7 +64,7 @@ jobs:
         with:
           name: front
           path: frontend/dist
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "~1.16"
       - run: terraform fmt -check -recursive infra
