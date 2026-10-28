@@ -1,11 +1,11 @@
-# Intégration continue : à chaque pull request et à chaque push sur main.
+# Intégration continue : à chaque pull request et à chaque push sur main ou dev.
 # Lambdas (ruff + pytest), front (lint, types, tests, build), Terraform (fmt, validate, plan dev et prod).
 name: CI
 
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, dev]
 
 permissions:
   contents: read

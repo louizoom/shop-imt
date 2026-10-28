@@ -1,10 +1,12 @@
-# Déploiement : dev à chaque push sur main, prod à la demande (onglet Actions > Deploy > Run workflow).
-# L'environnement GitHub « prod » peut exiger une validation manuelle (Settings > Environments).
+# Déploiement : branche dev -> environnement dev, branche main -> environnement prod.
+# Aussi à la demande (onglet Actions > Deploy > Run workflow). L'environnement GitHub « prod »
+# peut exiger une validation manuelle (Settings > Environments > Required reviewers).
+# Tant que la variable AWS_ROLE_DEPLOY n'existe pas, le job est sauté.
 name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
     inputs:
       environnement:
@@ -19,14 +21,15 @@ permissions:
 
 jobs:
   deploy:
-    name: Déployer ${{ inputs.environnement || 'dev' }}
+    name: Déployer ${{ inputs.environnement || (github.ref_name == 'main' && 'prod' || 'dev') }}
+    if: vars.AWS_ROLE_DEPLOY != ''
     runs-on: ubuntu-latest
-    environment: ${{ inputs.environnement || 'dev' }}
+    environment: ${{ inputs.environnement || (github.ref_name == 'main' && 'prod' || 'dev') }}
     concurrency:
-      group: deploy-${{ inputs.environnement || 'dev' }}
+      group: deploy-${{ inputs.environnement || (github.ref_name == 'main' && 'prod' || 'dev') }}
       cancel-in-progress: false
     env:
-      ENVIRONNEMENT: ${{ inputs.environnement || 'dev' }}
+      ENVIRONNEMENT: ${{ inputs.environnement || (github.ref_name == 'main' && 'prod' || 'dev') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

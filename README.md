@@ -91,7 +91,8 @@ pytest
 | Préfixe des ressources | `shopimt-dev` | `shopimt-sls` |
 | Capacité DynamoDB | 1 RCU/WCU | 5 RCU/WCU |
 | Identités SES | partagées (gérées par prod) | domaine et adresses vérifiées |
-| Déploiement | à chaque push sur `main` | à la demande, avec validation |
+| Branche Git | `dev` | `main` |
+| Déploiement | à chaque push sur `dev` | à chaque push sur `main`, avec validation |
 
 Les deux environnements utilisent exactement le même module : seules les valeurs de `infra/envs/<env>/main.tf` changent.
 
@@ -113,8 +114,14 @@ Les deux environnements utilisent exactement le même module : seules les valeur
 3. **GitHub** : dans *Settings > Secrets and variables > Actions > Variables*, créer `AWS_ROLE_PLAN` et
    `AWS_ROLE_DEPLOY` (sorties `role_plan` et `role_deploiement` du socle), puis les environnements `dev` et `prod`
    dans *Settings > Environments* (avec *Required reviewers* sur `prod`).
-4. **Déploiement** : push sur `main` pour dev, *Actions > Deploy > Run workflow > prod* pour la prod.
+4. **Déploiement** : push sur `dev` pour l'environnement dev, merge de `dev` dans `main` pour la prod
+   (ou *Actions > Deploy > Run workflow*).
    En local : `cd infra/envs/dev && terraform init && terraform plan -out tfplan && terraform apply tfplan`.
+
+## Branches
+
+- `dev` : branche de travail. On y fusionne les pull requests des branches de fonctionnalité ; chaque push déploie dev.
+- `main` : ce qui tourne en prod. On y fusionne `dev` par une pull request quand dev est validé.
 
 ## Intégration continue
 
