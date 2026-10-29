@@ -29,12 +29,12 @@ Navigateur ──► CloudFront ──► S3 (front Vue compilé)
 | SNS, SQS | Bus d'événements des commandes, file d'attente et DLQ |
 | Step Functions | Cycle de vie simulé d'une commande |
 | SES v2 | E-mails de confirmation, de suivi et de rappel, dans la langue de la commande |
-| Cognito | Comptes clients, groupe `admins` pour la console |
+| Cognito | Comptes clients, groupes `admins`, `ventes` et `stock` (rôles de la console de gestion) |
 | EventBridge Scheduler | Récapitulatif quotidien, rappel la veille de la livraison |
 | Amazon Translate | Nom anglais des produits, traduit une fois puis gardé en cache dans DynamoDB |
 | CloudWatch | Logs, métriques EMF (ventes), tableau de bord, alarmes |
 | SSM Parameter Store | Réglages personnels (adresses e-mail) hors du dépôt |
-| IAM + OIDC GitHub | Déploiement depuis GitHub Actions sans clé d'accès stockée |
+| IAM + OIDC GitHub | Déploiement depuis GitHub Actions sans clé d'accès stockée, groupe `shopimt-stock` en moindre privilège |
 
 ## Organisation du dépôt
 
@@ -54,6 +54,22 @@ infra/
 scripts/scenario.sh  Test de bout en bout sur un environnement déployé
 docs/                LLD (PDF) et présentation
 ```
+
+## Rôles
+
+Les rôles existent des deux côtés, sur le même principe : chacun n'a que ce dont il a besoin.
+
+| Rôle | Site (groupe Cognito) | Console AWS (IAM) |
+| --- | --- | --- |
+| Admin | `admins` : ventes, export CSV, stock | administrateur |
+| Ventes | `ventes` : graphiques et commandes, sans export ni stock | |
+| Stock | `stock` : onglet Stock seulement (réassort +/-) | groupe `shopimt-stock` : lecture du catalogue DynamoDB et modification du seul attribut `stock` (condition `dynamodb:Attributes`), logs de la Lambda admin |
+
+- **Site** : API Gateway vérifie le jeton (401), puis la Lambda `admin` vérifie le rôle route par route (403,
+  tentative journalisée `ADMIN_REFUSE`). Le front n'affiche que les onglets permis.
+- **Membres** : clés `admins`, `lecteurs_ventes` et `gestionnaires_stock` du paramètre SSM `/shopimt/<env>/config`.
+  Un membre doit se reconnecter pour recevoir son nouveau rôle.
+- **IAM** : `infra/bootstrap`, variable `utilisateurs_stock`.
 
 ## Développement local
 
@@ -109,7 +125,8 @@ Les deux environnements utilisent exactement le même module : seules les valeur
    ```bash
    aws ssm put-parameter --name /shopimt/prod/config --type String --value '{
      "notification_email": "moi@exemple.fr", "domaine_email": "shop.exemple.fr", "expediteur_domaine": true,
-     "emails_verifies": [], "admins": ["moi@exemple.fr"], "budget_email": ""}'
+     "emails_verifies": [], "admins": ["moi@exemple.fr"], "gestionnaires_stock": [], "lecteurs_ventes": [],
+     "budget_email": ""}'
    ```
 3. **GitHub** : dans *Settings > Secrets and variables > Actions > Variables*, créer `AWS_ROLE_PLAN` et
    `AWS_ROLE_DEPLOY` (sorties `role_plan` et `role_deploiement` du socle), puis les environnements `dev` et `prod`

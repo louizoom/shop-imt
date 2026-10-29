@@ -40,12 +40,18 @@ export function lireJeton(jwt: string): Record<string, unknown> {
   return JSON.parse(decodeURIComponent(escape(atob(b64))));
 }
 
-// Le jeton d'identité liste les groupes Cognito du compte ; l'API revérifie de toute façon (403).
-export const estAdmin = computed(() => {
-  if (!session.value) return false;
+// Rôles du site = groupes Cognito listés dans le jeton d'identité. Ils ne servent qu'à l'affichage :
+// la Lambda admin revérifie le rôle à chaque appel (403).
+export type Role = "admins" | "ventes" | "stock";
+export const roles = computed<Role[]>(() => {
+  if (!session.value) return [];
   const groupes = lireJeton(session.value.idToken)["cognito:groups"];
-  return Array.isArray(groupes) && groupes.includes("admins");
+  return Array.isArray(groupes) ? (groupes.filter((g) => ["admins", "ventes", "stock"].includes(g)) as Role[]) : [];
 });
+export const estAdmin = computed(() => roles.value.includes("admins"));
+export const peutVoirVentes = computed(() => estAdmin.value || roles.value.includes("ventes"));
+export const peutGererStock = computed(() => estAdmin.value || roles.value.includes("stock"));
+export const accesGestion = computed(() => peutVoirVentes.value || peutGererStock.value);
 
 export async function chargerConfig() {
   try {

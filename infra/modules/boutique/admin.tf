@@ -1,24 +1,45 @@
-# Interface admin : onglet du site réservé au groupe Cognito « admins ».
+# Interface admin : onglet du site, ouvert selon le rôle (groupe Cognito) du compte.
+#   admins -> tout ; ventes -> statistiques et commandes en lecture ; stock -> réassort seulement.
 #   GET /admin/stats      -> statistiques sur N jours (commandes, chiffre d'affaires, statuts, produits)
 #   GET /admin/commandes  -> liste des commandes avec l'e-mail du client (recherche ?q=)
 #   GET /admin/export     -> export CSV dans S3, téléchargé par URL présignée (5 min)
 #   GET|POST /admin/stock -> niveaux de stock et réassort (+/-), mise à jour conditionnelle DynamoDB
-# API Gateway refuse sans jeton (401), la Lambda admin refuse sans le groupe (403).
+# API Gateway refuse sans jeton (401), la Lambda admin refuse une route que le rôle n'autorise pas (403).
 # Rôle IAM minimal : Query sur l'index par-jour, Scan et UpdateItem sur la table produits.
 
-resource "aws_cognito_user_group" "admins" {
-  name         = "admins"
+# Rôles du site. La priorité (precedence) départage les rôles d'un compte qui en a plusieurs :
+# le plus petit nombre l'emporte pour le rôle « principal » ; la Lambda cumule les droits de tous.
+locals {
+  roles_site = {
+    admins = { precedence = 1, description = "Tout : ventes, export CSV et stock", membres = var.admins }
+    ventes = { precedence = 10, description = "Lecture des ventes et des commandes (sans export ni stock)", membres = var.lecteurs_ventes }
+    stock  = { precedence = 20, description = "Gestion du stock seulement (réassort +/-)", membres = var.gestionnaires_stock }
+  }
+  membres_site = merge([
+    for role, r in local.roles_site : { for e in r.membres : "${role}/${lower(e)}" => { role = role, email = lower(e) } }
+  ]...)
+}
+
+resource "aws_cognito_user_group" "role" {
+  for_each     = local.roles_site
+  name         = each.key
   user_pool_id = aws_cognito_user_pool.clients.id
-  description  = "Accès à l'interface admin SHOP'IMT"
+  precedence   = each.value.precedence
+  description  = each.value.description
 }
 
 # Les comptes sont créés depuis le site (« Mon compte »), puis ajoutés ici par leur e-mail.
 # Nouvelle connexion nécessaire pour que le jeton contienne le groupe.
-resource "aws_cognito_user_in_group" "admins" {
-  for_each     = toset([for e in var.admins : lower(e)])
+resource "aws_cognito_user_in_group" "membre" {
+  for_each     = local.membres_site
   user_pool_id = aws_cognito_user_pool.clients.id
-  group_name   = aws_cognito_user_group.admins.name
-  username     = each.key
+  group_name   = aws_cognito_user_group.role[each.value.role].name
+  username     = each.value.email
+}
+
+moved {
+  from = aws_cognito_user_group.admins
+  to   = aws_cognito_user_group.role["admins"]
 }
 
 resource "aws_apigatewayv2_route" "admin" {

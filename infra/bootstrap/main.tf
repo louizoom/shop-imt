@@ -177,6 +177,87 @@ resource "aws_iam_role_policy_attachment" "deploiement_admin" {
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
 
+# ---------- Accès console des membres de l'équipe (moindre privilège)
+
+variable "utilisateurs_stock" {
+  description = "Utilisateurs IAM qui ne gèrent que le stock (pendant AWS du rôle « stock » du site)"
+  type        = list(string)
+  default     = ["gabin"]
+}
+
+locals {
+  tables_produits = "arn:aws:dynamodb:eu-west-3:${data.aws_caller_identity.current.account_id}:table/shopimt-*-produits"
+}
+
+# Groupe IAM « stock » : voit le catalogue et ne peut modifier que l'attribut stock d'un produit.
+# Contrôle d'accès fin DynamoDB : la condition dynamodb:Attributes refuse toute écriture sur un
+# autre attribut (prix, nom…), même avec la console.
+resource "aws_iam_group" "stock" {
+  name = "shopimt-stock"
+}
+
+resource "aws_iam_group_policy" "stock" {
+  name  = "stock-seulement"
+  group = aws_iam_group.stock.name
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ListerLesTables"
+        Effect   = "Allow"
+        Action   = ["dynamodb:ListTables", "dynamodb:DescribeLimits"]
+        Resource = "*"
+      },
+      {
+        Sid      = "LireLeCatalogue"
+        Effect   = "Allow"
+        Action   = ["dynamodb:DescribeTable", "dynamodb:Scan", "dynamodb:Query", "dynamodb:GetItem"]
+        Resource = local.tables_produits
+      },
+      {
+        Sid      = "ModifierLeStockSeulement"
+        Effect   = "Allow"
+        Action   = "dynamodb:UpdateItem"
+        Resource = local.tables_produits
+        Condition = {
+          "ForAllValues:StringEquals" = { "dynamodb:Attributes" = ["id", "stock"] }
+          StringEqualsIfExists        = { "dynamodb:ReturnValues" = ["NONE", "UPDATED_OLD", "UPDATED_NEW"] }
+        }
+      },
+      {
+        Sid      = "JournalDesActionsDeGestion"
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogGroups"]
+        Resource = "*"
+      },
+      {
+        Sid      = "LireLesLogsAdmin"
+        Effect   = "Allow"
+        Action   = ["logs:DescribeLogStreams", "logs:GetLogEvents", "logs:FilterLogEvents", "logs:StartQuery", "logs:GetQueryResults"]
+        Resource = "arn:aws:logs:eu-west-3:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/shopimt-*-admin*"
+      },
+      {
+        Sid      = "SonPropreMotDePasse"
+        Effect   = "Allow"
+        Action   = ["iam:ChangePassword", "iam:GetUser"]
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:user/$${aws:username}"
+      },
+      {
+        Sid      = "PolitiqueDeMotDePasse"
+        Effect   = "Allow"
+        Action   = "iam:GetAccountPasswordPolicy"
+        Resource = "*"
+      },
+    ]
+  })
+}
+
+resource "aws_iam_group_membership" "stock" {
+  name  = "shopimt-stock-membres"
+  group = aws_iam_group.stock.name
+  users = var.utilisateurs_stock
+}
+
 output "bucket_etat" {
   value = aws_s3_bucket.etat.bucket
 }

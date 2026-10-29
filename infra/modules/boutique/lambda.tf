@@ -81,7 +81,7 @@ locals {
     }
 
     admin = {
-      description = "Interface admin : commandes, statistiques et stock (groupe Cognito admins)"
+      description = "Interface admin : ventes et stock, accès par rôle (groupes Cognito admins, ventes, stock)"
       timeout     = 15
       env = {
         TABLE_COMMANDES = aws_dynamodb_table.commandes.name

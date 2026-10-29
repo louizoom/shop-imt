@@ -3,7 +3,7 @@ import { useI18n } from "vue-i18n";
 import { useRoute } from "vue-router";
 import SelecteurLangue from "@/components/SelecteurLangue.vue";
 import { nbArticles } from "@/lib/boutique";
-import { comptesActifs, estAdmin, session } from "@/lib/session";
+import { accesGestion, comptesActifs, estAdmin, peutGererStock, session } from "@/lib/session";
 
 defineProps<{ modeAdmin: boolean }>();
 const { t } = useI18n();
@@ -58,7 +58,7 @@ const actif = (nom: string) => route.name === nom;
             <path d="M4 20.5c1.2-3.6 4.3-5.5 8-5.5s6.8 1.9 8 5.5" /></svg
           >{{ session ? t("nav.mesCommandes") : t("nav.compte") }}
         </RouterLink>
-        <RouterLink v-if="estAdmin" to="/admin" :class="{ actif: actif('admin') }">
+        <RouterLink v-if="accesGestion" to="/admin" :class="{ actif: actif('admin') }">
           <svg
             viewBox="0 0 24 24"
             fill="none"
@@ -74,7 +74,7 @@ const actif = (nom: string) => route.name === nom;
             <path
               d="M12 21c-1.7 0-3-1.2-3-2.9 0-1.6 1.2-2.6 2-3.8.6 1 1.3 1.4 2 1.6.3-1 .2-2 0-2.9 1.3.9 2 2.4 2 4.1 0 2.1-1.3 3.9-3 3.9z"
             /></svg
-          >{{ t("nav.admin") }}
+          >{{ estAdmin ? t("nav.admin") : peutGererStock ? t("nav.stock") : t("nav.ventes") }}
         </RouterLink>
       </nav>
       <SelecteurLangue />

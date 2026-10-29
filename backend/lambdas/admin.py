@@ -2,7 +2,11 @@
 
 Deux contrôles d'accès :
   1. API Gateway (autorisateur JWT Cognito) refuse toute requête sans jeton valide : 401.
-  2. Cette Lambda vérifie que le jeton porte le groupe Cognito « admins » : sinon 403.
+  2. Cette Lambda vérifie les groupes Cognito du jeton, route par route (contrôle d'accès par rôle) :
+       admins  -> toutes les routes
+       ventes  -> statistiques et liste des commandes, en lecture (pas d'export, pas de stock)
+       stock   -> niveaux de stock et réassort uniquement
+     Une route que les groupes du compte n'autorisent pas répond 403 et laisse une trace ADMIN_REFUSE.
 
 Lecture par l'index secondaire « par-jour » (une requête Query par jour, jamais de Scan).
 Les statistiques sont calculées ici plutôt que lues dans CloudWatch : GetMetricData est
@@ -34,7 +38,12 @@ T_COMMANDES = os.environ["TABLE_COMMANDES"]
 T_PRODUITS = os.environ.get("TABLE_PRODUITS", "")
 STOCK_MAX = 999
 BUCKET_EXPORT = os.environ.get("BUCKET_EXPORT", "")
-GROUPE_ADMIN = "admins"
+# Rôles du site (groupes Cognito) et routes que chacun peut appeler
+DROITS = {
+    "admins": {"GET /admin/stats", "GET /admin/commandes", "GET /admin/export", "GET /admin/stock", "POST /admin/stock"},
+    "ventes": {"GET /admin/stats", "GET /admin/commandes"},
+    "stock": {"GET /admin/stock", "POST /admin/stock"},
+}
 JOURS_MAX = 90
 _deser = TypeDeserializer()
 
@@ -53,6 +62,10 @@ def _groupes(claims):
     if isinstance(brut, list):
         return set(brut)
     return set(brut.strip("[]").replace(",", " ").split())
+
+
+def autorise(groupes, route):
+    return any(route in DROITS.get(g, ()) for g in groupes)
 
 
 def _jours(n, aujourd_hui=None):
@@ -209,9 +222,10 @@ def handler(event, context):
     claims = event["requestContext"]["authorizer"]["jwt"]["claims"]
     qui = claims.get("email", claims.get("sub"))
     route = event.get("routeKey")
-    if GROUPE_ADMIN not in _groupes(claims):
-        print(json.dumps({"evenement": "ADMIN_REFUSE", "qui": qui, "route": route}))
-        return _rep(403, {"erreur": "réservé aux administrateurs"})
+    groupes = _groupes(claims)
+    if not autorise(groupes, route):
+        print(json.dumps({"evenement": "ADMIN_REFUSE", "qui": qui, "route": route, "groupes": sorted(groupes)}))
+        return _rep(403, {"erreur": "votre rôle ne donne pas accès à cette page"})
 
     if route == "GET /admin/stock":
         return _rep(200, {"produits": lister_stock()})

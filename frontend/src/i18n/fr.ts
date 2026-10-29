@@ -7,6 +7,8 @@ const fr = {
     compte: "Mon compte",
     mesCommandes: "Mes commandes",
     admin: "Admin",
+    stock: "Stock",
+    ventes: "Ventes",
     langue: "Langue",
   },
   boutique: {
@@ -113,6 +115,9 @@ const fr = {
   },
   admin: {
     sur: "Console administrateur",
+    surGestion: "Console de gestion",
+    role: "Rôle : {role}",
+    roles: { admins: "administrateur", ventes: "lecture des ventes", stock: "gestion du stock" },
     ventes: "Ventes",
     stock: "Stock",
     sections: "Sections admin",

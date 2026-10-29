@@ -8,6 +8,8 @@ const en: Messages = {
     compte: "My account",
     mesCommandes: "My orders",
     admin: "Admin",
+    stock: "Stock",
+    ventes: "Sales",
     langue: "Language",
   },
   boutique: {
@@ -113,6 +115,9 @@ const en: Messages = {
   },
   admin: {
     sur: "Admin console",
+    surGestion: "Management console",
+    role: "Role: {role}",
+    roles: { admins: "administrator", ventes: "sales (read-only)", stock: "stock management" },
     ventes: "Sales",
     stock: "Stock",
     sections: "Admin sections",

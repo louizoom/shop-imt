@@ -1,16 +1,21 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { appel } from "@/lib/api";
-import { session } from "@/lib/session";
+import { estAdmin, peutGererStock, peutVoirVentes, roles, session } from "@/lib/session";
 import AdminStock from "./admin/AdminStock.vue";
 import AdminVentes from "./admin/AdminVentes.vue";
 import { etat, informer, informerErreur } from "./admin/message";
 
-// Console administrateur, réservée au groupe Cognito « admins » (vérifié aussi par la Lambda : 403)
+// Console de gestion : les onglets dépendent du rôle (groupes Cognito admins, ventes, stock).
+// La Lambda admin revérifie le rôle à chaque appel (403).
 type Onglet = "ventes" | "stock";
 const { t } = useI18n();
-const onglet = ref<Onglet>("ventes");
+const onglets = computed<Onglet[]>(() => [
+  ...(peutVoirVentes.value ? ["ventes" as const] : []),
+  ...(peutGererStock.value ? ["stock" as const] : []),
+]);
+const onglet = ref<Onglet>(onglets.value[0] ?? "stock");
 const jours = ref(30);
 const version = ref(0); // incrémenté par « Actualiser » : les onglets rechargent leurs données
 
@@ -36,13 +41,17 @@ async function exporter() {
   <div class="admin">
     <div class="admin-tete">
       <div>
-        <p class="admin-sur">{{ t("admin.sur") }}</p>
+        <p class="admin-sur">{{ estAdmin ? t("admin.sur") : t("admin.surGestion") }}</p>
         <div class="admin-onglets" role="tablist" :aria-label="t('admin.sections')">
-          <button type="button" role="tab" :aria-selected="onglet === 'ventes'" @click="choisir('ventes')">{{ t("admin.ventes") }}</button>
-          <button type="button" role="tab" :aria-selected="onglet === 'stock'" @click="choisir('stock')">{{ t("admin.stock") }}</button>
+          <button v-for="o in onglets" :key="o" type="button" role="tab" :aria-selected="onglet === o" @click="choisir(o)">
+            {{ t(`admin.${o}`) }}
+          </button>
         </div>
         <h1>{{ onglet === "stock" ? t("admin.titreStock") : t("admin.titreVentes") }}</h1>
-        <p v-if="session" class="aide">{{ t("admin.connecte", { email: session.email }) }}</p>
+        <p v-if="session" class="aide">
+          {{ t("admin.connecte", { email: session.email }) }} ·
+          {{ t("admin.role", { role: roles.map((r) => t(`admin.roles.${r}`)).join(", ") }) }}
+        </p>
       </div>
       <div class="admin-actions">
         <div v-if="onglet === 'ventes'" class="periodes" role="group" :aria-label="t('admin.periode')">
@@ -50,7 +59,9 @@ async function exporter() {
             {{ t("admin.jours", { n }) }}
           </button>
         </div>
-        <button v-if="onglet === 'ventes'" type="button" class="admin-bouton" @click="exporter">{{ t("admin.exporter") }}</button>
+        <button v-if="onglet === 'ventes' && estAdmin" type="button" class="admin-bouton" @click="exporter">
+          {{ t("admin.exporter") }}
+        </button>
         <button type="button" class="admin-bouton" @click="version++">{{ t("admin.actualiser") }}</button>
       </div>
     </div>

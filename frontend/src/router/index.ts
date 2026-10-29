@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouteLocationRaw } from "vue-router";
-import { estAdmin } from "@/lib/session";
+import { accesGestion } from "@/lib/session";
 import BoutiqueView from "@/views/BoutiqueView.vue";
 
 // Routes du site. Le chemin est réécrit vers index.html par une CloudFront Function (viewer-request),
@@ -24,8 +24,8 @@ router.beforeEach((to): RouteLocationRaw | true => {
     if ("compte" in to.query) return { name: "compte" };
     if ("admin" in to.query) return { name: "admin" };
   }
-  // Route protégée : groupe Cognito « admins » (l'API revérifie de toute façon, 403)
-  if (to.meta.admin && !estAdmin.value) return { name: "compte" };
+  // Route protégée : un rôle de gestion (groupes Cognito admins, ventes ou stock) ; l'API revérifie (403)
+  if (to.meta.admin && !accesGestion.value) return { name: "compte" };
   return true;
 });
 

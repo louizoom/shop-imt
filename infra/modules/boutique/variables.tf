@@ -64,6 +64,18 @@ variable "admins" {
   default     = []
 }
 
+variable "gestionnaires_stock" {
+  description = "Comptes du site (déjà inscrits) au rôle stock : onglet Stock seulement"
+  type        = list(string)
+  default     = []
+}
+
+variable "lecteurs_ventes" {
+  description = "Comptes du site (déjà inscrits) au rôle ventes : statistiques et commandes en lecture"
+  type        = list(string)
+  default     = []
+}
+
 variable "environnement" {
   description = "Nom de l'environnement (dev ou prod), repris dans les tags et le tableau de bord"
   type        = string

@@ -184,6 +184,17 @@ assert stock("[admins]", {"id": "p003", "delta": -10})["statusCode"] == 409   # 
 assert stock("[admins]", {"id": "zzz", "delta": 1})["statusCode"] == 409      # produit inconnu
 assert stock("[admins]", {"id": "p003", "delta": 0})["statusCode"] == 400
 assert stock("[admins]", {"id": "p003"})["statusCode"] == 400
+# Rôles : « stock » ne voit que le stock, « ventes » ne lit que les ventes (ni export ni stock)
+assert stock("[stock]", {"id": "p003", "delta": 1})["statusCode"] == 200
+assert stock("[stock]", {"id": "p003", "delta": -1})["statusCode"] == 200
+assert adm("GET /admin/stock", "[stock]")["statusCode"] == 200
+assert adm("GET /admin/stats", "[stock]")["statusCode"] == 403
+assert adm("GET /admin/export", "[stock]")["statusCode"] == 403
+assert adm("GET /admin/stats", "[ventes]")["statusCode"] == 200
+assert adm("GET /admin/commandes", "[ventes]")["statusCode"] == 200
+assert adm("GET /admin/export", "[ventes]")["statusCode"] == 403
+assert stock("[ventes]", {"id": "p003", "delta": 1})["statusCode"] == 403
+assert adm("GET /admin/stats", "[stock ventes]")["statusCode"] == 200   # plusieurs rôles : droits cumulés
 assert boto3.TABLES["p"]["p003"]["stock"]["N"] == "9"
 
 # Récap quotidien (EventBridge Scheduler) : commandes du jour, stocks bas, e-mail aux admins

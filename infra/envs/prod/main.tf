@@ -54,10 +54,12 @@ module "boutique" {
   capacite_dynamodb   = 5
   gerer_identites_ses = true
 
-  notification_email = try(local.config.notification_email, "")
-  budget_email       = try(local.config.budget_email, "")
-  emails_verifies    = try(local.config.emails_verifies, [])
-  domaine_email      = try(local.config.domaine_email, "")
-  expediteur_domaine = try(local.config.expediteur_domaine, false)
-  admins             = try(local.config.admins, [])
+  notification_email  = try(local.config.notification_email, "")
+  budget_email        = try(local.config.budget_email, "")
+  emails_verifies     = try(local.config.emails_verifies, [])
+  domaine_email       = try(local.config.domaine_email, "")
+  expediteur_domaine  = try(local.config.expediteur_domaine, false)
+  admins              = try(local.config.admins, [])
+  gestionnaires_stock = try(local.config.gestionnaires_stock, [])
+  lecteurs_ventes     = try(local.config.lecteurs_ventes, [])
 }
