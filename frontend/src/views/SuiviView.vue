@@ -55,7 +55,8 @@ onBeforeUnmount(() => {
 });
 
 function soumettre() {
-  const id = saisie.value.trim();
+  const brut = saisie.value.trim();
+  const id = /^shop-/i.test(brut) ? brut.toUpperCase() : brut; // SHOP-000042-K7QF, même tapé en minuscules
   if (id) versSuivi(id);
 }
 </script>

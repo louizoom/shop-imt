@@ -1,6 +1,7 @@
 """Parcours complet des Lambdas, sans compte AWS (faux SDK en mémoire dans fakeaws/).
 Exécuté par pytest (test_lambdas.py) ou directement : python3 backend/tests/parcours.py"""
-import json, os, sys, importlib, datetime
+import json
+import re, os, sys, importlib, datetime
 ICI = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [os.path.join(ICI, "fakeaws"), os.path.join(ICI, "..", "lambdas")]
 os.environ.update(GROUPE_RAPPELS="rappels", ROLE_RAPPELS="arn:role", TABLE_PRODUITS="p", TABLE_COMMANDES="c", TOPIC_ARN="arn:t", BUCKET_AUDIT="b", STATE_MACHINE_ARN="arn:sfn", SITE_URL="https://shop.test", EXPEDITEUR="shop@imt.test")
@@ -32,6 +33,10 @@ assert boto3.TABLES["p"]["p001"]["stock"]["N"] == "3"   # rollback
 r = post({"client_email":"A@B.fr","articles":[{"id":"p001","quantite":2},{"id":"p003","quantite":1},{"id":"p001","quantite":1}]})
 assert r["statusCode"] == 201, r
 c = json.loads(r["body"]); oid = c["order_id"]
+assert re.match(r"^SHOP-000002-[2-9A-HJKMNP-Z]{4}$", oid), oid   # compteur atomique (le 409 a pris le n° 1) + code de contrôle
+assert boto3.TABLES["c"]["#compteur"]["valeur"]["N"] == "2"
+assert get(oid[:-4] + "2222")["statusCode"] in (400, 404) and get("SHOP-000001")["statusCode"] == 400
+assert get("123e4567-e89b-12d3-a456-426614174000")["statusCode"] == 404   # ancien format UUID toujours accepté
 assert c["total"] == "69.20", c   # 3*19.90 + 9.50
 assert boto3.TABLES["p"]["p001"]["stock"]["N"] == "0"
 assert boto3.PUBLISHED == []   # commandes n'écrit qu'en base (outbox)
@@ -95,6 +100,7 @@ def compte(route, sub, body=None):
 r = compte("POST /compte/commandes", "sub-1", {"client_email": "pirate@x.fr", "articles": [{"id": "p003", "quantite": 1}]})
 assert r["statusCode"] == 201, r
 oid2 = json.loads(r["body"])["order_id"]
+assert oid2.startswith("SHOP-000003-"), oid2
 assert boto3.TABLES["c"][oid2]["client_email"]["S"] == "membre@imt.fr"   # e-mail du jeton, pas du corps
 assert boto3.TABLES["c"][oid2]["client_sub"]["S"] == "sub-1"
 h = json.loads(compte("GET /compte/commandes", "sub-1")["body"])["commandes"]

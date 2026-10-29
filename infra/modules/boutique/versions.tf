@@ -3,8 +3,9 @@ terraform {
 
   required_providers {
     aws = {
-      source  = "hashicorp/aws"
-      version = "~> 6.70"
+      source                = "hashicorp/aws"
+      version               = "~> 6.70"
+      configuration_aliases = [aws.us_east_1] # certificat ACM de CloudFront
     }
     archive = {
       source  = "hashicorp/archive"

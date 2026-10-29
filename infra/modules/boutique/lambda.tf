@@ -26,6 +26,12 @@ locals {
         { actions = ["dynamodb:BatchGetItem", "dynamodb:UpdateItem"], resources = [aws_dynamodb_table.produits.arn] },
         { actions = ["dynamodb:PutItem", "dynamodb:GetItem"], resources = [aws_dynamodb_table.commandes.arn] },
         { actions = ["dynamodb:Query"], resources = ["${aws_dynamodb_table.commandes.arn}/index/par-client"] },
+        # Compteur des numéros de commande : UpdateItem limité à la seule ligne #compteur (contrôle d'accès fin)
+        {
+          actions    = ["dynamodb:UpdateItem"]
+          resources  = [aws_dynamodb_table.commandes.arn]
+          conditions = [{ test = "ForAllValues:StringEquals", variable = "dynamodb:LeadingKeys", values = ["#compteur"] }]
+        },
       ]
     }
 
@@ -34,8 +40,8 @@ locals {
       timeout     = 10
       env = {
         TOPIC_ARN    = aws_sns_topic.commandes.arn
-        SITE_URL     = "https://${aws_cloudfront_distribution.site.domain_name}" # lien de suivi dans l'e-mail
-        METRIQUES_NS = local.metriques_ns                                        # métriques métier (format EMF, voir monitoring.tf)
+        SITE_URL     = local.url_site     # lien de suivi dans l'e-mail
+        METRIQUES_NS = local.metriques_ns # métriques métier (format EMF, voir monitoring.tf)
       }
       statements = [
         { actions = ["dynamodb:DescribeStream", "dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:ListStreams"], resources = [aws_dynamodb_table.commandes.stream_arn] },
@@ -49,7 +55,7 @@ locals {
       timeout     = 10
       env = {
         EXPEDITEUR      = local.expediteur
-        SITE_URL        = "https://${aws_cloudfront_distribution.site.domain_name}"
+        SITE_URL        = local.url_site
         TABLE_COMMANDES = aws_dynamodb_table.commandes.name
         GROUPE_RAPPELS  = aws_scheduler_schedule_group.rappels.name
         ROLE_RAPPELS    = aws_iam_role.rappels.arn
@@ -105,7 +111,7 @@ locals {
         TABLE_PRODUITS  = aws_dynamodb_table.produits.name
         EXPEDITEUR      = local.expediteur
         DESTINATAIRES   = join(",", [for e in var.admins : lower(e)])
-        SITE_URL        = "https://${aws_cloudfront_distribution.site.domain_name}"
+        SITE_URL        = local.url_site
       }
       statements = [
         { actions = ["dynamodb:Query"], resources = ["${aws_dynamodb_table.commandes.arn}/index/par-jour"] },
@@ -177,6 +183,15 @@ data "aws_iam_policy_document" "lambda" {
     content {
       actions   = statement.value.actions
       resources = statement.value.resources
+
+      dynamic "condition" {
+        for_each = try(statement.value.conditions, [])
+        content {
+          test     = condition.value.test
+          variable = condition.value.variable
+          values   = condition.value.values
+        }
+      }
     }
   }
 }
@@ -240,7 +255,8 @@ resource "aws_lambda_event_source_mapping" "publication" {
 
   filter_criteria {
     filter {
-      pattern = jsonencode({ eventName = ["INSERT"] })
+      # Nouvelles commandes seulement : la ligne #compteur (sans statut) ne déclenche rien
+      pattern = jsonencode({ eventName = ["INSERT"], dynamodb = { NewImage = { statut = { S = [{ exists = true }] } } } })
     }
   }
 

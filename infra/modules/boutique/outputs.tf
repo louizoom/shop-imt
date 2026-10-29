@@ -1,6 +1,6 @@
 output "site_url" {
-  description = "URL de SHOP'IMT (CloudFront)"
-  value       = "https://${aws_cloudfront_distribution.site.domain_name}"
+  description = "URL de SHOP'IMT (nom de domaine s'il est actif, sinon adresse CloudFront)"
+  value       = local.url_site
 }
 
 output "api_url" {
@@ -69,4 +69,17 @@ output "recap_quotidien" {
 output "bucket_site" {
   description = "Bucket S3 du front (déploiement du build Vite)"
   value       = aws_s3_bucket.frontend.bucket
+}
+
+output "dns_site" {
+  description = "Enregistrements à créer chez le registraire du domaine (validation du certificat, puis site)"
+  value = var.domaine_site == "" ? [] : concat(
+    [for o in aws_acm_certificate.site[0].domain_validation_options : { nom = o.resource_record_name, type = o.resource_record_type, valeur = o.resource_record_value }],
+    [{ nom = "${var.domaine_site}.", type = "CNAME", valeur = "${aws_cloudfront_distribution.site.domain_name}." }],
+  )
+}
+
+output "certificat_statut" {
+  description = "PENDING_VALIDATION tant que le CNAME de validation n'est pas visible, puis ISSUED"
+  value       = var.domaine_site == "" ? null : aws_acm_certificate.site[0].status
 }

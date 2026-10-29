@@ -52,3 +52,13 @@ output "fonction_admin" {
   description = "Lambda admin (scripts/scenario.sh)"
   value       = module.boutique.fonction_admin
 }
+
+output "dns_site" {
+  description = "Nom de domaine du site : enregistrements à créer chez le registraire"
+  value       = module.boutique.dns_site
+}
+
+output "certificat_statut" {
+  description = "Certificat ACM du nom de domaine (PENDING_VALIDATION puis ISSUED)"
+  value       = module.boutique.certificat_statut
+}

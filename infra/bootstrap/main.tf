@@ -39,6 +39,14 @@ variable "depot_github" {
   default     = "louizoom/shop-imt"
 }
 
+# GitHub peut émettre le « sub » du jeton OIDC avec les identifiants immuables du compte et du dépôt
+# (repo:louizoom@125150055/shop-imt@1436114641:…) : un dépôt recréé sous le même nom n'a pas les mêmes.
+variable "depot_github_ids" {
+  description = "Même dépôt, au format propriétaire@id/nom@id du claim sub"
+  type        = string
+  default     = "louizoom@125150055/shop-imt@1436114641"
+}
+
 data "aws_caller_identity" "current" {}
 
 locals {
@@ -115,7 +123,7 @@ data "aws_iam_policy_document" "confiance_plan" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.depot_github}:*"]
+      values   = ["repo:${var.depot_github}:*", "repo:${var.depot_github_ids}:*"]
     }
   }
 }
@@ -136,7 +144,7 @@ data "aws_iam_policy_document" "confiance_deploiement" {
     condition {
       test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.depot_github}:environment:dev", "repo:${var.depot_github}:environment:prod"]
+      values   = flatten([for d in [var.depot_github, var.depot_github_ids] : [for e in ["dev", "prod"] : "repo:${d}:environment:${e}"]])
     }
   }
 }

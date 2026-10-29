@@ -55,6 +55,24 @@ scripts/scenario.sh  Test de bout en bout sur un environnement déployé
 docs/                LLD (PDF) et présentation
 ```
 
+## Nom de domaine
+
+Facultatif, par environnement, dans le paramètre SSM (`domaine_site`, `domaine_site_actif`). Le certificat est
+demandé à **ACM** en `us-east-1` (seule région lue par CloudFront), gratuit et renouvelé automatiquement.
+Le domaine étant chez un autre registraire, il n'y a pas de zone Route 53 (payante) :
+
+1. `domaine_site` renseigné, `terraform apply`, puis créer chez le registraire les enregistrements de la sortie `dns_site`
+   (CNAME de validation du certificat, CNAME du site vers CloudFront) ;
+2. quand `certificat_statut` vaut `ISSUED`, passer `domaine_site_actif` à `true` et relancer `terraform apply` :
+   CloudFront répond sur le domaine et les e-mails pointent vers lui.
+
+## Numéros de commande
+
+`SHOP-000042-K7QF` : le nombre vient d'un compteur atomique DynamoDB (`UpdateItem ADD` sur la ligne `#compteur`
+de la table commandes, seule ligne que la Lambda peut incrémenter), les 4 caractères aléatoires empêchent de
+deviner la commande d'un autre client. Les e-mails affichent `SHOP-000042`. Les anciennes commandes (UUID)
+restent consultables.
+
 ## Rôles
 
 Les rôles existent des deux côtés, sur le même principe : chacun n'a que ce dont il a besoin.
