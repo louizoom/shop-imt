@@ -101,6 +101,11 @@ COULEURS_STATUT = {"EXPEDIEE": BLEU, "INCIDENT_TRANSPORT": "#c76a00", "LIVREE": 
 STATUTS_EMAIL = set(COULEURS_STATUT)   # seuls ces statuts déclenchent un e-mail
 
 
+
+def numero_court(order_id):
+    """SHOP-000042 (sans le code de contrôle) ; 8 caractères pour un ancien UUID."""
+    return order_id.rsplit("-", 1)[0] if order_id.startswith("SHOP-") else order_id[:8]
+
 def _t(langue):
     return TEXTES["en" if langue == "en" else "fr"]
 
@@ -260,7 +265,7 @@ def construire_email(evenement):
     lignes = evenement["articles"]
     nb = sum(ligne["quantite"] for ligne in lignes)
     total = _euros(evenement["total"], langue)
-    sujet = t["conf_sujet"].format(id=order_id[:8])
+    sujet = t["conf_sujet"].format(id=numero_court(order_id))
     livraison = evenement.get("livraison_estimee")
 
     contenu = f"""{_entete(t['conf_sur'], BLEU, t['conf_titre'], t['conf_phrase'].format(nb=nb))}
@@ -301,7 +306,7 @@ def construire_email_statut(commande, statut, detail):
     sur_titre, titre, phrase = t["statuts"][statut]
     lien = f"{SITE_URL}/suivi/{order_id}"
     titre_texte = html.unescape(titre)
-    sujet = f"SHOP'IMT - {titre_texte} ({order_id[:8]})"
+    sujet = f"SHOP'IMT - {titre_texte} ({numero_court(order_id)})"
     infos = [(t["etape"], detail)]
     if commande.get("transporteur"):
         infos.append((t["transporteur"], commande["transporteur"]))

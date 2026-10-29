@@ -37,6 +37,10 @@ class _DDB:
         items.sort(key=lambda i: i["cree_le"]["S"], reverse=not ScanIndexForward)
         return {"Items": items[:Limit]}
     def update_item(self, TableName, Key, UpdateExpression, ExpressionAttributeValues, ConditionExpression="", ReturnValues=None):
+        if UpdateExpression == "ADD valeur :un":   # compteur des numéros de commande
+            it = TABLES[TableName].setdefault(_k(TableName, Key), {**copy.deepcopy(Key), "valeur": {"N": "0"}})
+            it["valeur"]["N"] = str(int(it["valeur"]["N"]) + int(ExpressionAttributeValues[":un"]["N"]))
+            return {"Attributes": {"valeur": dict(it["valeur"])}}
         if UpdateExpression == "SET stock = stock + :d":   # réassort admin : compteur atomique borné
             it = TABLES[TableName].get(_k(TableName, Key))
             v = ExpressionAttributeValues

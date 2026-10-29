@@ -36,6 +36,21 @@ provider "aws" {
   }
 }
 
+# Certificat ACM de CloudFront : CloudFront ne lit que ceux de us-east-1
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+
+  default_tags {
+    tags = {
+      Projet        = "shop-imt"
+      Solution      = "serverless"
+      Environnement = "dev"
+      GerePar       = "terraform"
+    }
+  }
+}
+
 # Réglages personnels (adresses e-mail, admins) hors du dépôt : paramètre SSM Parameter Store
 # /shopimt/dev/config, un JSON créé une fois à la main (voir README).
 data "aws_ssm_parameter" "config" {
@@ -48,6 +63,10 @@ locals {
 
 module "boutique" {
   source = "../../modules/boutique"
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
 
   environnement       = "dev"
   prefix              = "shopimt-dev"
@@ -62,4 +81,6 @@ module "boutique" {
   admins              = try(local.config.admins, [])
   gestionnaires_stock = try(local.config.gestionnaires_stock, [])
   lecteurs_ventes     = try(local.config.lecteurs_ventes, [])
+  domaine_site        = try(local.config.domaine_site, "")
+  domaine_site_actif  = try(local.config.domaine_site_actif, false)
 }

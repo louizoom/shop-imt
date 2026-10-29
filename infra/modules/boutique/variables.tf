@@ -92,3 +92,15 @@ variable "gerer_identites_ses" {
   type        = bool
   default     = true
 }
+
+variable "domaine_site" {
+  description = "Nom de domaine du site (ex. shopimt.exemple.fr), vide pour garder l'adresse CloudFront"
+  type        = string
+  default     = ""
+}
+
+variable "domaine_site_actif" {
+  description = "true une fois le certificat ACM émis : branche le domaine sur CloudFront"
+  type        = bool
+  default     = false
+}

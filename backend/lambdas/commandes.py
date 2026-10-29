@@ -13,6 +13,7 @@ import datetime
 import json
 import os
 import re
+import secrets
 import uuid
 from decimal import Decimal
 
@@ -26,6 +27,12 @@ T_PRODUITS = os.environ["TABLE_PRODUITS"]
 T_COMMANDES = os.environ["TABLE_COMMANDES"]
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# Numéro de commande lisible : SHOP-000042-K7QF. Le nombre vient d'un compteur atomique DynamoDB
+# (ligne « #compteur » de la table commandes, UpdateItem ADD) ; les 4 caractères aléatoires empêchent
+# de deviner la commande d'un autre client en incrémentant le numéro (la page de suivi est publique).
+COMPTEUR = "#compteur"
+ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"  # sans 0/O ni 1/I/L, faciles à confondre
+ID_RE = re.compile(r"^SHOP-\d{6,}-[2-9A-HJKMNP-Z]{4}$")
 MAX_LIGNES = 10
 MAX_QUANTITE = 20
 _deser = TypeDeserializer()
@@ -117,7 +124,7 @@ def creer(event, client=None):
         total += prix * q
     total_str = f"{total:.2f}"
 
-    order_id = str(uuid.uuid4())
+    order_id = nouvel_identifiant()
     maintenant = datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds")
 
     transaction = [
@@ -166,6 +173,34 @@ def creer(event, client=None):
     })
 
 
+def nouvel_identifiant():
+    r = ddb.update_item(
+        TableName=T_COMMANDES,
+        Key={"order_id": {"S": COMPTEUR}},
+        UpdateExpression="ADD valeur :un",
+        ExpressionAttributeValues={":un": {"N": "1"}},
+        ReturnValues="UPDATED_NEW",
+    )
+    n = int(r["Attributes"]["valeur"]["N"])
+    return f"SHOP-{n:06d}-" + "".join(secrets.choice(ALPHABET) for _ in range(4))
+
+
+def identifiant_valide(order_id):
+    """Nouveau format SHOP-…, ou UUID des commandes passées avant le changement de format."""
+    if ID_RE.match(order_id):
+        return True
+    try:
+        uuid.UUID(order_id)
+        return True
+    except ValueError:
+        return False
+
+
+def numero_court(order_id):
+    """SHOP-000042 pour l'affichage (sans le code de contrôle) ; 8 caractères pour un ancien UUID."""
+    return order_id.rsplit("-", 1)[0] if order_id.startswith("SHOP-") else order_id[:8]
+
+
 def livraison_estimee(date, jours_ouvres=3):
     """Date de livraison annoncée au client : 3 jours ouvrés après la commande (week-end exclu)."""
     while jours_ouvres:
@@ -176,9 +211,7 @@ def livraison_estimee(date, jours_ouvres=3):
 
 
 def lire(order_id):
-    try:
-        uuid.UUID(order_id)
-    except ValueError:
+    if not identifiant_valide(order_id):
         return _rep(400, {"erreur": "identifiant invalide"})
 
     item = ddb.get_item(TableName=T_COMMANDES, Key={"order_id": {"S": order_id}}).get("Item")
@@ -207,9 +240,7 @@ def agenda(order_id):
     """GET /commandes/{id}/agenda : la livraison estimée en événement d'agenda (.ics, RFC 5545).
     Sur iPhone, Safari propose directement « Ajouter au calendrier » ; ailleurs le fichier s'ouvre
     dans Outlook, Apple Calendrier ou Thunderbird. Google Agenda passe par un lien dédié (front)."""
-    try:
-        uuid.UUID(order_id)
-    except ValueError:
+    if not identifiant_valide(order_id):
         return _rep(400, {"erreur": "identifiant invalide"})
     item = ddb.get_item(TableName=T_COMMANDES, Key={"order_id": {"S": order_id}}).get("Item")
     if not item or "livraison_estimee" not in item:
@@ -234,7 +265,7 @@ def agenda(order_id):
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "text/calendar; charset=utf-8",
-                    "Content-Disposition": f'inline; filename="livraison-shopimt-{order_id[:8]}.ics"',
+                    "Content-Disposition": f'inline; filename="livraison-{numero_court(order_id).lower()}.ics"',
                     "Cache-Control": "max-age=300"},
         "body": "\r\n".join(lignes) + "\r\n",
     }

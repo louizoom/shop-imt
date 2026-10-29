@@ -19,6 +19,11 @@ METRIQUES_NS = os.environ.get("METRIQUES_NS", "SHOPIMT")
 _deser = TypeDeserializer()
 
 
+
+def numero_court(order_id):
+    """SHOP-000042 (sans le code de contrôle) ; 8 caractères pour un ancien UUID."""
+    return order_id.rsplit("-", 1)[0] if order_id.startswith("SHOP-") else order_id[:8]
+
 def _evenement(image):
     c = {k: _deser.deserialize(v) for k, v in image.items()}
     return {
@@ -48,7 +53,7 @@ def _publier(evenement):
     # l'abonné e-mail reçoit le texte lisible ("email").
     sns.publish(
         TopicArn=TOPIC_ARN,
-        Subject=f"SHOP'IMT - Confirmation de commande {order_id[:8]}",
+        Subject=f"SHOP'IMT - Confirmation de commande {numero_court(order_id)}",
         MessageStructure="json",
         Message=json.dumps({"default": json.dumps(evenement, ensure_ascii=False),
                             "email": texte_email}, ensure_ascii=False),

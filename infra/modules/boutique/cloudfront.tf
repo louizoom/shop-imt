@@ -223,7 +223,12 @@ resource "aws_cloudfront_distribution" "site" {
     }
   }
 
+  aliases = local.domaine_actif ? [var.domaine_site] : []
+
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = !local.domaine_actif
+    acm_certificate_arn            = local.domaine_actif ? aws_acm_certificate_validation.site[0].certificate_arn : null
+    ssl_support_method             = local.domaine_actif ? "sni-only" : null
+    minimum_protocol_version       = local.domaine_actif ? "TLSv1.2_2021" : "TLSv1"
   }
 }
