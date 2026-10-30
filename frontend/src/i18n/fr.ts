@@ -1,5 +1,14 @@
 // Textes français (langue de référence). en.ts doit avoir exactement les mêmes clés : vérifié par TypeScript.
 const fr = {
+  fermeture: {
+    annonce: "Fin du projet : SHOP'IMT ferme le {date}.",
+    reste: "Temps restant avant la fermeture",
+    j: "j",
+    h: "h",
+    min: "min",
+    s: "s",
+    ferme: "SHOP'IMT est fermé. Merci de votre visite !",
+  },
   nav: {
     boutique: "Boutique",
     suivre: "Suivre",

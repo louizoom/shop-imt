@@ -126,6 +126,14 @@ Pour couper la solution EC2 sans toucher au serverless : passer `"solution_ec2":
 (ou un nouveau déploiement par GitHub). Pour tout supprimer : `terraform destroy` dans `infra/envs/dev` puis
 `infra/envs/prod`, et en dernier dans `infra/bootstrap`.
 
+**Autodestruction programmée.** Le site affiche un compte à rebours jusqu'au 13 novembre 2026 à 15 h (heure de
+Paris). À cette heure-là, le workflow GitHub `Autodestruction` supprime tout : `terraform destroy` de la prod et de
+dev, puis `scripts/autodestruction.sh` (ressources de test, SSM, journaux, SES, utilisateurs IAM, budget du projet,
+bucket d'état Terraform, OIDC) et désactive les workflows du dépôt. Le code reste sur GitHub. Pour le tester sans
+rien supprimer : onglet Actions > Autodestruction > Run workflow (simulation cochée). Pour l'annuler : désactiver
+ce workflow dans l'onglet Actions. Pour la repousser : changer la date dans `.github/workflows/autodestruction.yml`
+et `frontend/src/lib/fermeture.ts`.
+
 ## 7. Envoyer le projet par mail
 
 Le zip fait environ 5,5 Mo (dont 5 Mo de PDF et de présentation) et ne contient pas de fichier `.js` : il passe en
