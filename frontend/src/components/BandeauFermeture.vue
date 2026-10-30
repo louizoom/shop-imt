@@ -6,9 +6,7 @@ import { FERMETURE, decompte } from "@/lib/fermeture";
 const { t, locale } = useI18n();
 const maintenant = ref(new Date());
 const reste = computed(() => decompte(maintenant.value));
-const date = computed(() =>
-  FERMETURE.toLocaleString(locale.value, { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" }),
-);
+const date = computed(() => FERMETURE.toLocaleString(locale.value, { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Paris" }));
 const deuxChiffres = (n: number) => String(n).padStart(2, "0");
 let minuteur: ReturnType<typeof setInterval> | undefined;
 
@@ -21,10 +19,18 @@ onUnmounted(() => clearInterval(minuteur));
     <template v-if="reste">
       <span>{{ t("fermeture.annonce", { date }) }}</span>
       <span class="minuteur" :aria-label="t('fermeture.reste')">
-        <span>{{ reste.jours }}<small>{{ t("fermeture.j") }}</small></span>
-        <span>{{ deuxChiffres(reste.heures) }}<small>{{ t("fermeture.h") }}</small></span>
-        <span>{{ deuxChiffres(reste.minutes) }}<small>{{ t("fermeture.min") }}</small></span>
-        <span>{{ deuxChiffres(reste.secondes) }}<small>{{ t("fermeture.s") }}</small></span>
+        <span
+          >{{ reste.jours }}<small>{{ t("fermeture.j") }}</small></span
+        >
+        <span
+          >{{ deuxChiffres(reste.heures) }}<small>{{ t("fermeture.h") }}</small></span
+        >
+        <span
+          >{{ deuxChiffres(reste.minutes) }}<small>{{ t("fermeture.min") }}</small></span
+        >
+        <span
+          >{{ deuxChiffres(reste.secondes) }}<small>{{ t("fermeture.s") }}</small></span
+        >
       </span>
     </template>
     <span v-else>{{ t("fermeture.ferme") }}</span>
