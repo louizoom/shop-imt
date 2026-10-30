@@ -83,3 +83,8 @@ output "certificat_statut" {
   description = "PENDING_VALIDATION tant que le CNAME de validation n'est pas visible, puis ISSUED"
   value       = var.domaine_site == "" ? null : aws_acm_certificate.site[0].status
 }
+
+output "expediteur" {
+  description = "Adresse expéditrice des e-mails SES (reprise par la solution EC2)"
+  value       = local.expediteur
+}

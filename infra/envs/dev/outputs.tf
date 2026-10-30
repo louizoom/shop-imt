@@ -62,3 +62,20 @@ output "certificat_statut" {
   description = "Certificat ACM du nom de domaine (PENDING_VALIDATION puis ISSUED)"
   value       = module.boutique.certificat_statut
 }
+
+output "ec2_site_url" {
+  description = "Adresse du site, solution EC2 (vide si solution_ec2 est désactivée)"
+  value       = try(module.ec2[0].site_url, "")
+}
+
+output "ec2" {
+  description = "Ressources principales de la solution EC2"
+  value = try({
+    alb                = module.ec2[0].alb
+    bdd                = module.ec2[0].bdd
+    serveur_traitement = module.ec2[0].serveur_traitement
+    auto_scaling_group = module.ec2[0].auto_scaling_group
+    bucket             = module.ec2[0].bucket
+    tableau_de_bord    = module.ec2[0].tableau_de_bord
+  }, null)
+}
