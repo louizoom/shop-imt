@@ -85,7 +85,8 @@ if ! aws s3 cp "$CACHE" kafka.tgz; then
   aws s3 cp kafka.tgz "$CACHE" || true
 fi
 tar xzf kafka.tgz && rm kafka.tgz && ln -sfn "/opt/kafka_2.13-${version_kafka}" /opt/kafka
-IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
+# IP fixe attribuée par Terraform (le jeton IMDS du début peut avoir expiré après dnf)
+IP=${kafka}
 mkdir -p /var/lib/kafka
 cat > /opt/kafka/config/shopimt.properties <<KAFKA
 process.roles=broker,controller
