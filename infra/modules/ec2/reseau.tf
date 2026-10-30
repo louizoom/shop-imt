@@ -111,14 +111,14 @@ resource "aws_vpc_security_group_egress_rule" "alb_web" {
 
 resource "aws_security_group" "web" {
   name        = "${var.prefix}-web"
-  description = "Serveurs web : port 8080 depuis l'ALB uniquement"
+  description = "Serveurs web : port 8080 depuis ALB uniquement"
   vpc_id      = aws_vpc.principal.id
   tags        = { Name = "${var.prefix}-web" }
 }
 
 resource "aws_vpc_security_group_ingress_rule" "web_alb" {
   security_group_id            = aws_security_group.web.id
-  description                  = "Application depuis l'ALB"
+  description                  = "Application depuis ALB"
   ip_protocol                  = "tcp"
   from_port                    = 8080
   to_port                      = 8080
@@ -175,7 +175,7 @@ resource "aws_vpc_security_group_egress_rule" "https" {
 resource "aws_vpc_security_group_egress_rule" "http" {
   for_each          = { web = aws_security_group.web.id, traitement = aws_security_group.traitement.id }
   security_group_id = each.value
-  description       = "HTTP sortant (dépôts de paquets Amazon Linux)"
+  description       = "HTTP sortant (depots de paquets Amazon Linux)"
   ip_protocol       = "tcp"
   from_port         = 80
   to_port           = 80
