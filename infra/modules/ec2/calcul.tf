@@ -98,6 +98,9 @@ resource "aws_autoscaling_group" "web" {
     value               = "${var.prefix}-web"
     propagate_at_launch = true
   }
+
+  # Les règles de sortie doivent exister avant le premier démarrage (paquets, S3, SSM)
+  depends_on = [aws_vpc_security_group_egress_rule.https, aws_vpc_security_group_egress_rule.http, aws_vpc_security_group_egress_rule.mysql]
 }
 
 # Élasticité : une 2e instance si le CPU moyen dépasse 60 %, retour à 1 quand la charge retombe
@@ -185,6 +188,9 @@ resource "aws_instance" "traitement" {
   lifecycle {
     ignore_changes = [ami] # pas de remplacement à chaque nouvelle AMI publiée
   }
+
+  # Les règles de sortie doivent exister avant le premier démarrage (paquets, S3, SSM)
+  depends_on = [aws_vpc_security_group_egress_rule.https, aws_vpc_security_group_egress_rule.http, aws_vpc_security_group_egress_rule.mysql]
 }
 
 # Récupération automatique : si l'hôte physique tombe en panne, EC2 redémarre l'instance ailleurs

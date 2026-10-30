@@ -13,7 +13,7 @@ if [ ! -f /swapfile ]; then
   echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
 fi
 
-dnf install -y python3.12 python3.12-pip unzip amazon-cloudwatch-agent %{ if role == "traitement" }java-17-amazon-corretto-headless%{ endif }
+for i in 1 2 3; do dnf install -y python3.12 python3.12-pip unzip amazon-cloudwatch-agent %{ if role == "traitement" }java-17-amazon-corretto-headless%{ endif } && break; sleep 20; done
 
 useradd --system --home /opt/shopimt shopimt || true
 mkdir -p /opt/shopimt/app /opt/shopimt/site /var/log/shopimt
