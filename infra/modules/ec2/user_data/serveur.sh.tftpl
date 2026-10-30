@@ -47,12 +47,43 @@ PYTHONUNBUFFERED=1
 ENV
 chown -R shopimt:shopimt /opt/shopimt /var/log/shopimt
 
+# ---------- Service de l'application (démarre sans attendre Kafka, qu'il rejoint dès qu'il répond)
+%{ if role == "traitement" ~}
+SERVICE_CMD="/opt/shopimt/venv/bin/python -m shopimt_ec2.worker"
+%{ else ~}
+SERVICE_CMD="/opt/shopimt/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 2 --threads 4 --access-logfile - shopimt_ec2.wsgi:app"
+%{ endif ~}
+cat > /etc/systemd/system/shopimt.service <<UNIT
+[Unit]
+Description=SHOP'IMT ${role}
+After=network-online.target
+
+[Service]
+User=shopimt
+EnvironmentFile=/etc/shopimt.env
+WorkingDirectory=/opt/shopimt/app
+ExecStart=$SERVICE_CMD
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/shopimt/${role}.log
+StandardError=append:/var/log/shopimt/${role}.log
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload && systemctl enable --now shopimt
+
 %{ if role == "traitement" ~}
 # ---------- Apache Kafka ${version_kafka}, un seul nœud en mode KRaft (broker et contrôleur, sans ZooKeeper)
 # Amazon MSK serait l'équivalent géré et hautement disponible (3 brokers), mais il n'est pas dans le Free Tier.
 useradd --system --home /opt/kafka kafka || true
 cd /opt
-curl -sSfL --retry 3 -o kafka.tgz "https://archive.apache.org/dist/kafka/${version_kafka}/kafka_2.13-${version_kafka}.tgz"
+# Archive mise en cache dans S3 au premier téléchargement : archive.apache.org est lent
+CACHE="s3://${bucket}/kafka/kafka_2.13-${version_kafka}.tgz"
+if ! aws s3 cp "$CACHE" kafka.tgz; then
+  curl -sSfL --retry 3 -o kafka.tgz "https://archive.apache.org/dist/kafka/${version_kafka}/kafka_2.13-${version_kafka}.tgz"
+  aws s3 cp kafka.tgz "$CACHE" || true
+fi
 tar xzf kafka.tgz && rm kafka.tgz && ln -sfn "/opt/kafka_2.13-${version_kafka}" /opt/kafka
 IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
 mkdir -p /var/lib/kafka
@@ -95,42 +126,20 @@ mkdir -p /var/log/kafka && chown kafka:kafka /var/log/kafka
 systemctl daemon-reload && systemctl enable --now kafka
 for i in $(seq 1 30); do /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$IP:9092" --list && break; sleep 5; done
 /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$IP:9092" --create --if-not-exists --topic commandes --partitions 3 --replication-factor 1
-SERVICE_CMD="/opt/shopimt/venv/bin/python -m shopimt_ec2.worker"
-%{ else ~}
-SERVICE_CMD="/opt/shopimt/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 2 --threads 4 --access-logfile - shopimt_ec2.wsgi:app"
 %{ endif ~}
 
-cat > /etc/systemd/system/shopimt.service <<UNIT
-[Unit]
-Description=SHOP'IMT ${role}
-After=network-online.target
-
-[Service]
-User=shopimt
-EnvironmentFile=/etc/shopimt.env
-WorkingDirectory=/opt/shopimt/app
-ExecStart=$SERVICE_CMD
-Restart=always
-RestartSec=5
-StandardOutput=append:/var/log/shopimt/${role}.log
-StandardError=append:/var/log/shopimt/${role}.log
-
-[Install]
-WantedBy=multi-user.target
-UNIT
-systemctl daemon-reload && systemctl enable --now shopimt
 
 # ---------- Agent CloudWatch : logs de l'application (et de Kafka) et mémoire utilisée
 cat > /opt/aws/amazon-cloudwatch-agent/etc/shopimt.json <<CWA
 {
+  "agent": {"metrics_collection_interval": 300},
   "logs": {"logs_collected": {"files": {"collect_list": [
     {"file_path": "/var/log/shopimt/${role}.log", "log_group_name": "${groupe_logs}", "log_stream_name": "{instance_id}"},
     {"file_path": "/var/log/kafka/server.log", "log_group_name": "${groupe_logs}", "log_stream_name": "{instance_id}-kafka"},
     {"file_path": "/var/log/shopimt-demarrage.log", "log_group_name": "${groupe_logs}", "log_stream_name": "{instance_id}-demarrage"}
   ]}}},
   "metrics": {"namespace": "SHOPIMT/EC2", "append_dimensions": {"AutoScalingGroupName": "\$${aws:AutoScalingGroupName}", "InstanceId": "\$${aws:InstanceId}"},
-    "metrics_collected": {"mem": {"measurement": ["mem_used_percent"]}},
-    "metrics_collection_interval": 300}
+    "metrics_collected": {"mem": {"measurement": ["mem_used_percent"]}}}
 }
 CWA
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/shopimt.json

@@ -18,7 +18,8 @@ locals {
     }
     traitement = {
       SQS   = { actions = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"], resources = [aws_sqs_queue.traitement.arn] }
-      Audit = { actions = ["s3:PutObject"], resources = ["${aws_s3_bucket.ec2.arn}/audit/*"] }
+      Audit = { actions = ["s3:PutObject"], resources = ["${aws_s3_bucket.ec2.arn}/audit/*", "${aws_s3_bucket.ec2.arn}/kafka/*"] }
+      Kafka = { actions = ["s3:GetObject"], resources = ["${aws_s3_bucket.ec2.arn}/kafka/*"] }
       # E-mails : mêmes droits que la Lambda notification (envoi, et demande de vérification en sandbox SES)
       SES = { actions = ["ses:SendEmail", "ses:CreateEmailIdentity", "ses:TagResource"], resources = ["*"] }
     }
