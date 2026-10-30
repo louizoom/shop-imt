@@ -6,6 +6,8 @@ avec deux environnements (**dev** et **prod**) et un front **Vue 3 + TypeScript*
 
 Projet du cours AWS : boutique en ligne avec SNS et une file de messages, en Terraform.
 
+**Pour commencer : [GUIDE.md](GUIDE.md)** (rendus, démo, déploiement, scénarios de test, arrêt).
+
 ## Architecture
 
 ```
@@ -88,6 +90,7 @@ infra/
 scripts/scenario.sh      Test de bout en bout de la solution serverless sur un environnement déployé
 scripts/scenario-ec2.sh  Même test pour la solution EC2
 docs/                    Rapport de projet, LLD (PDF) et présentation
+GUIDE.md                 Guide pas à pas : rendus, démo, déploiement, tests, arrêt
 ```
 
 ## Nom de domaine
