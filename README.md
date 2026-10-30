@@ -85,8 +85,9 @@ infra/
   envs/dev/          Environnement dev : état S3 dev/terraform.tfstate
   envs/prod/         Environnement prod : état S3 prod/terraform.tfstate
   bootstrap/         Bucket d'état et rôles GitHub OIDC, créés une seule fois
-scripts/scenario.sh  Test de bout en bout sur un environnement déployé
-docs/                LLD (PDF) et présentation
+scripts/scenario.sh      Test de bout en bout de la solution serverless sur un environnement déployé
+scripts/scenario-ec2.sh  Même test pour la solution EC2
+docs/                    Rapport de projet, LLD (PDF) et présentation
 ```
 
 ## Nom de domaine
@@ -186,6 +187,21 @@ Les deux environnements utilisent exactement le même module : seules les valeur
 4. **Déploiement** : push sur `dev` pour l'environnement dev, merge de `dev` dans `main` pour la prod
    (ou *Actions > Deploy > Run workflow*).
    En local : `cd infra/envs/dev && terraform init && terraform plan -out tfplan && terraform apply tfplan`.
+
+## Scénarios de test
+
+Après un déploiement (`terraform init` fait dans `infra/envs/<env>`, AWS CLI configuré en `eu-west-3`) :
+
+```bash
+scripts/scenario.sh dev ton.email@exemple.fr      # serverless : catalogue, erreurs 400/409, commande, suivi jusqu'à LIVREE,
+                                                  # DynamoDB, audit S3, Step Functions, admin 401/403/200
+scripts/scenario-ec2.sh dev ton.email@exemple.fr  # EC2 : instances de l'ASG, ALB fermé sans CloudFront (403), catalogue RDS,
+                                                  # erreurs 400/409, commande, suivi jusqu'à LIVREE, audit S3 écrit par Kafka
+```
+
+L'adresse doit être vérifiée dans SES (mode sandbox) pour recevoir les e-mails. Tests sans AWS :
+`ruff check . && pytest` à la racine (les tests EC2 demandent une base MySQL dans `SHOPIMT_TEST_BDD`),
+`cd frontend && npm run lint && npm test && npm run build`.
 
 ## Branches
 
