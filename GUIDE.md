@@ -128,6 +128,6 @@ Pour couper la solution EC2 sans toucher au serverless : passer `"solution_ec2":
 
 ## 7. Envoyer le projet par mail
 
-Gmail refuse les zip qui contiennent des fichiers `.js`, ce qui est le cas de ce projet. Passer par la messagerie de
-l'IMT (Zimbra), par un lien Google Drive, ou par le lien de téléchargement GitHub :
-https://github.com/louizoom/shop-imt/archive/refs/heads/main.zip
+Le zip fait environ 5,5 Mo (dont 5 Mo de PDF et de présentation) et ne contient pas de fichier `.js` : il passe en
+pièce jointe Gmail. S'il est refusé, passer par la messagerie de l'IMT (Zimbra), par un lien Google Drive, ou par le
+lien de téléchargement GitHub : https://github.com/louizoom/shop-imt/archive/refs/heads/main.zip
