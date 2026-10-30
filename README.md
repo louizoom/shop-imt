@@ -35,7 +35,6 @@ Navigateur ──► CloudFront ──► S3 (front Vue compilé)
 | Amazon Translate | Nom anglais des produits, traduit une fois puis gardé en cache dans DynamoDB |
 | CloudWatch | Logs, métriques EMF (ventes), tableau de bord, alarmes |
 | SSM Parameter Store | Réglages personnels (adresses e-mail) hors du dépôt |
-| Trusted Advisor | Contrôles de bonnes pratiques du compte (sécurité, quotas) ; une règle EventBridge dans us-east-1 envoie par e-mail (SNS) tout contrôle qui passe en orange ou rouge, en prod seulement (le compte est commun) |
 | IAM + OIDC GitHub | Déploiement depuis GitHub Actions sans clé d'accès stockée, groupe `shopimt-stock` en moindre privilège |
 
 ## Solution EC2 (machines virtuelles)
