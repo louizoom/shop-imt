@@ -1,0 +1,111 @@
+# Autodestruction de fin de projet : à la date FERMETURE (même date que le bandeau du site,
+# frontend/src/lib/fermeture.ts), supprime toute l'infrastructure AWS puis désactive les workflows du dépôt.
+#   1. terraform destroy de prod puis de dev (serverless et EC2)
+#   2. scripts/autodestruction.sh reste : ressources hors Terraform (tests, SSM, journaux, SES, IAM, budget)
+#   3. désactivation des workflows GitHub (CI, Deploy, Autodestruction)
+#   4. scripts/autodestruction.sh socle : bucket d'état Terraform, rôles GitHub et fournisseur OIDC
+# Lancé chaque jour à 14 h UTC : avant la date il ne fait rien, après il recommence tant qu'une étape échoue.
+# Onglet Actions > Autodestruction > Run workflow : simulation (plan -destroy, rien n'est supprimé).
+# Pour annuler : désactiver ce workflow dans l'onglet Actions, ou supprimer ce fichier.
+name: Autodestruction
+
+on:
+  schedule:
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+    inputs:
+      simulation:
+        description: Simulation (rien n'est supprimé)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+env:
+  FERMETURE: "2026-11-13T14:00:00Z"
+
+jobs:
+  autodestruction:
+    name: Autodestruction
+    if: vars.AWS_ROLE_DEPLOY != ''
+    runs-on: ubuntu-latest
+    # L'environnement dev n'a pas de validation manuelle : le job tourne seul à l'heure dite
+    environment: dev
+    concurrency:
+      group: autodestruction
+      cancel-in-progress: false
+    timeout-minutes: 180
+    steps:
+      - name: Date de fermeture
+        id: mode
+        env:
+          SIMULATION_DEMANDEE: ${{ github.event_name == 'workflow_dispatch' && inputs.simulation }}
+        run: |
+          reste=$(( $(date -ud "$FERMETURE" +%s) - $(date -u +%s) ))
+          if [ "$SIMULATION_DEMANDEE" = "true" ] || { [ "$reste" -gt 0 ] && [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; }; then
+            mode=simulation
+          elif [ "$reste" -gt 0 ]; then
+            mode=attente
+          else
+            mode=reel
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "### Autodestruction : $mode (fermeture $FERMETURE, J-$(( (reste + 86399) / 86400 )))" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/checkout@v4
+        if: steps.mode.outputs.mode != 'attente'
+      - uses: actions/setup-node@v4
+        if: steps.mode.outputs.mode != 'attente'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build du front (lu par Terraform)
+        if: steps.mode.outputs.mode != 'attente'
+        working-directory: frontend
+        run: npm ci && npm run build
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.mode.outputs.mode != 'attente'
+        with:
+          terraform_version: "~1.16"
+
+      # Une session OIDC dure au plus une heure : nouvelle session avant chaque environnement
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.mode.outputs.mode != 'attente'
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_DEPLOY }}
+          aws-region: eu-west-3
+      - name: Destroy prod
+        if: steps.mode.outputs.mode != 'attente'
+        working-directory: infra/envs/prod
+        run: ../../../scripts/destroy-env.sh "${{ steps.mode.outputs.mode }}"
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.mode.outputs.mode != 'attente'
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_DEPLOY }}
+          aws-region: eu-west-3
+      - name: Destroy dev
+        if: steps.mode.outputs.mode != 'attente'
+        working-directory: infra/envs/dev
+        run: ../../../scripts/destroy-env.sh "${{ steps.mode.outputs.mode }}"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.mode.outputs.mode != 'attente'
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_DEPLOY }}
+          aws-region: eu-west-3
+      - name: Nettoyage hors Terraform
+        if: steps.mode.outputs.mode != 'attente'
+        run: scripts/autodestruction.sh reste ${{ steps.mode.outputs.mode == 'simulation' && '--simulation' || '' }}
+      - name: Arrêt des workflows GitHub
+        if: steps.mode.outputs.mode == 'reel'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for w in ci.yml deploy.yml autodestruction.yml; do gh workflow disable "$w" --repo "$GITHUB_REPOSITORY" || true; done
+          echo "Workflows désactivés" >> "$GITHUB_STEP_SUMMARY"
+      - name: Suppression du socle (état Terraform, OIDC)
+        if: steps.mode.outputs.mode != 'attente'
+        run: scripts/autodestruction.sh socle ${{ steps.mode.outputs.mode == 'simulation' && '--simulation' || '' }}

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, watchEffect } from "vue";
 import { useRoute } from "vue-router";
+import BandeauFermeture from "@/components/BandeauFermeture.vue";
 import NavBar from "@/components/NavBar.vue";
 import { chargerConfig } from "@/lib/session";
 
@@ -20,6 +21,7 @@ onMounted(chargerConfig);
 </script>
 
 <template>
+  <BandeauFermeture />
   <NavBar :mode-admin="modeAdmin" />
   <main>
     <RouterView />
