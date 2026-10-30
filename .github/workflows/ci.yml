@@ -1,5 +1,5 @@
 # Intégration continue : à chaque pull request et à chaque push sur main ou dev.
-# Lambdas (ruff + pytest), front (lint, types, tests, build), Terraform (fmt, validate, plan dev et prod).
+# Python (ruff + pytest, MySQL pour la solution EC2), front (lint, types, tests, build), Terraform (fmt, validate, plan dev et prod).
 name: CI
 
 on:
@@ -16,14 +16,27 @@ concurrency:
 
 jobs:
   backend:
-    name: Lambdas Python
+    name: Python (Lambdas et serveurs EC2)
     runs-on: ubuntu-latest
+    # MySQL 8.4, comme RDS : les tests de la solution EC2 tournent contre une vraie base
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: racine
+          MYSQL_DATABASE: boutique_test
+          MYSQL_USER: shopimt
+          MYSQL_PASSWORD: test
+        ports: ["3306:3306"]
+        options: --health-cmd="mysqladmin ping -h 127.0.0.1" --health-interval=5s --health-retries=20
+    env:
+      SHOPIMT_TEST_BDD: 127.0.0.1
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install pytest ruff
+      - run: pip install pytest ruff -r backend/ec2/requirements.txt
       - run: ruff check .
       - run: pytest
 

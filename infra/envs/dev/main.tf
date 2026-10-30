@@ -20,6 +20,10 @@ terraform {
       source  = "hashicorp/archive"
       version = "~> 2.6"
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.7"
+    }
   }
 }
 
@@ -53,6 +57,21 @@ provider "aws" {
 
 # Réglages personnels (adresses e-mail, admins) hors du dépôt : paramètre SSM Parameter Store
 # /shopimt/dev/config, un JSON créé une fois à la main (voir README).
+# Solution EC2 : mêmes tags, Solution = ec2 (Cost Explorer sépare le coût des deux solutions)
+provider "aws" {
+  alias  = "ec2"
+  region = "eu-west-3"
+
+  default_tags {
+    tags = {
+      Projet        = "shop-imt"
+      Solution      = "ec2"
+      Environnement = "dev"
+      GerePar       = "terraform"
+    }
+  }
+}
+
 data "aws_ssm_parameter" "config" {
   name = "/shopimt/dev/config"
 }
@@ -83,4 +102,18 @@ module "boutique" {
   lecteurs_ventes     = try(local.config.lecteurs_ventes, [])
   domaine_site        = try(local.config.domaine_site, "")
   domaine_site_actif  = try(local.config.domaine_site_actif, false)
+}
+
+# Solution EC2, en parallèle de la solution serverless : VPC, ALB, Auto Scaling, RDS, SNS/SQS, Kafka sur EC2.
+# Activée par la clé solution_ec2 du paramètre SSM (false ou absente : rien n'est créé, coût nul).
+module "ec2" {
+  source    = "../../modules/ec2"
+  count     = try(local.config.solution_ec2, false) ? 1 : 0
+  providers = { aws = aws.ec2 }
+
+  prefix          = "shopimt-dev-ec2"
+  environnement   = "dev"
+  expediteur      = module.boutique.expediteur
+  dossier_site    = "${path.root}/../../../frontend/dist"
+  dossier_backend = "${path.root}/../../../backend"
 }

@@ -1,0 +1,136 @@
+#!/bin/bash
+# Démarrage d'un serveur SHOP'IMT (rôle : ${role}), exécuté une fois par cloud-init au premier boot.
+# Amazon Linux 2023 : Python 3.12, agent CloudWatch ; le code vient du bucket S3 (endpoint Gateway du VPC).
+set -euxo pipefail
+exec > >(tee -a /var/log/shopimt-demarrage.log) 2>&1
+
+TOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+INSTANCE_ID=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/instance-id)
+
+# Mémoire d'appoint : 1 Go de swap sur une t3.micro (1 Go de RAM)
+if [ ! -f /swapfile ]; then
+  dd if=/dev/zero of=/swapfile bs=1M count=1024 && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile
+  echo "/swapfile swap swap defaults 0 0" >> /etc/fstab
+fi
+
+dnf install -y python3.12 python3.12-pip unzip amazon-cloudwatch-agent %{ if role == "traitement" }java-17-amazon-corretto-headless%{ endif }
+
+useradd --system --home /opt/shopimt shopimt || true
+mkdir -p /opt/shopimt/app /opt/shopimt/site /var/log/shopimt
+aws s3 cp "s3://${bucket}/${cle_application}" /tmp/application.zip
+unzip -oq /tmp/application.zip -d /opt/shopimt/app
+%{ if role == "web" ~}
+aws s3 cp "s3://${bucket}/${cle_site}" /tmp/site.zip
+unzip -oq /tmp/site.zip -d /opt/shopimt/site
+%{ endif ~}
+curl -sSfo /opt/shopimt/rds-ca.pem "https://truststore.pki.rds.amazonaws.com/${region}/${region}-bundle.pem"
+python3.12 -m venv /opt/shopimt/venv
+/opt/shopimt/venv/bin/pip install -q -r /opt/shopimt/app/requirements.txt
+
+cat > /etc/shopimt.env <<ENV
+AWS_REGION=${region}
+AWS_DEFAULT_REGION=${region}
+INSTANCE_ID=$INSTANCE_ID
+BDD_HOTE=${bdd_hote}
+BDD_PARAMETRE=${bdd_parametre}
+BDD_CA=/opt/shopimt/rds-ca.pem
+TOPIC_COMMANDES=${topic}
+FILE_TRAITEMENT=${file}
+KAFKA=${kafka}:9092
+BUCKET_AUDIT=${bucket}
+EXPEDITEUR=${expediteur}
+SITE_URL=${site_url}
+DELAI_MAX=${delai_max}
+DOSSIER_SITE=/opt/shopimt/site
+PYTHONPATH=/opt/shopimt/app
+PYTHONUNBUFFERED=1
+ENV
+chown -R shopimt:shopimt /opt/shopimt /var/log/shopimt
+
+%{ if role == "traitement" ~}
+# ---------- Apache Kafka ${version_kafka}, un seul nœud en mode KRaft (broker et contrôleur, sans ZooKeeper)
+# Amazon MSK serait l'équivalent géré et hautement disponible (3 brokers), mais il n'est pas dans le Free Tier.
+useradd --system --home /opt/kafka kafka || true
+cd /opt
+curl -sSfL --retry 3 -o kafka.tgz "https://archive.apache.org/dist/kafka/${version_kafka}/kafka_2.13-${version_kafka}.tgz"
+tar xzf kafka.tgz && rm kafka.tgz && ln -sfn "/opt/kafka_2.13-${version_kafka}" /opt/kafka
+IP=$(curl -s -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/local-ipv4)
+mkdir -p /var/lib/kafka
+cat > /opt/kafka/config/shopimt.properties <<KAFKA
+process.roles=broker,controller
+node.id=1
+controller.quorum.voters=1@127.0.0.1:9093
+listeners=PLAINTEXT://$IP:9092,CONTROLLER://127.0.0.1:9093
+advertised.listeners=PLAINTEXT://$IP:9092
+controller.listener.names=CONTROLLER
+listener.security.protocol.map=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+inter.broker.listener.name=PLAINTEXT
+log.dirs=/var/lib/kafka
+num.partitions=3
+auto.create.topics.enable=true
+offsets.topic.replication.factor=1
+transaction.state.log.replication.factor=1
+transaction.state.log.min.isr=1
+log.retention.hours=168
+KAFKA
+/opt/kafka/bin/kafka-storage.sh format --ignore-formatted -t "$(/opt/kafka/bin/kafka-storage.sh random-uuid)" -c /opt/kafka/config/shopimt.properties
+chown -R kafka:kafka /opt/kafka_2.13-${version_kafka} /var/lib/kafka
+
+cat > /etc/systemd/system/kafka.service <<UNIT
+[Unit]
+Description=Apache Kafka (KRaft, nœud unique)
+After=network-online.target
+
+[Service]
+User=kafka
+Environment="KAFKA_HEAP_OPTS=-Xmx320m -Xms320m"
+Environment=LOG_DIR=/var/log/kafka
+ExecStart=/opt/kafka/bin/kafka-server-start.sh /opt/kafka/config/shopimt.properties
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+mkdir -p /var/log/kafka && chown kafka:kafka /var/log/kafka
+systemctl daemon-reload && systemctl enable --now kafka
+for i in $(seq 1 30); do /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$IP:9092" --list && break; sleep 5; done
+/opt/kafka/bin/kafka-topics.sh --bootstrap-server "$IP:9092" --create --if-not-exists --topic commandes --partitions 3 --replication-factor 1
+SERVICE_CMD="/opt/shopimt/venv/bin/python -m shopimt_ec2.worker"
+%{ else ~}
+SERVICE_CMD="/opt/shopimt/venv/bin/gunicorn --bind 0.0.0.0:8080 --workers 2 --threads 4 --access-logfile - shopimt_ec2.wsgi:app"
+%{ endif ~}
+
+cat > /etc/systemd/system/shopimt.service <<UNIT
+[Unit]
+Description=SHOP'IMT ${role}
+After=network-online.target
+
+[Service]
+User=shopimt
+EnvironmentFile=/etc/shopimt.env
+WorkingDirectory=/opt/shopimt/app
+ExecStart=$SERVICE_CMD
+Restart=always
+RestartSec=5
+StandardOutput=append:/var/log/shopimt/${role}.log
+StandardError=append:/var/log/shopimt/${role}.log
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload && systemctl enable --now shopimt
+
+# ---------- Agent CloudWatch : logs de l'application (et de Kafka) et mémoire utilisée
+cat > /opt/aws/amazon-cloudwatch-agent/etc/shopimt.json <<CWA
+{
+  "logs": {"logs_collected": {"files": {"collect_list": [
+    {"file_path": "/var/log/shopimt/${role}.log", "log_group_name": "${groupe_logs}", "log_stream_name": "{instance_id}"},
+    {"file_path": "/var/log/kafka/server.log", "log_group_name": "${groupe_logs}", "log_stream_name": "{instance_id}-kafka"},
+    {"file_path": "/var/log/shopimt-demarrage.log", "log_group_name": "${groupe_logs}", "log_stream_name": "{instance_id}-demarrage"}
+  ]}}},
+  "metrics": {"namespace": "SHOPIMT/EC2", "append_dimensions": {"AutoScalingGroupName": "\$${aws:AutoScalingGroupName}", "InstanceId": "\$${aws:InstanceId}"},
+    "metrics_collected": {"mem": {"measurement": ["mem_used_percent"]}},
+    "metrics_collection_interval": 300}
+}
+CWA
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -s -c file:/opt/aws/amazon-cloudwatch-agent/etc/shopimt.json

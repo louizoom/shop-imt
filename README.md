@@ -1,6 +1,7 @@
 # SHOP'IMT
 
-Boutique en ligne des étudiants de l'IMT Nord Europe, en **serverless sur AWS**, décrite entièrement en **Terraform**,
+Boutique en ligne des étudiants de l'IMT Nord Europe sur AWS, en **deux solutions qui tournent en parallèle**
+(**serverless** et **machines virtuelles EC2**), décrite entièrement en **Terraform**,
 avec deux environnements (**dev** et **prod**) et un front **Vue 3 + TypeScript** bilingue (français / anglais).
 
 Projet du cours AWS : boutique en ligne avec SNS et une file de messages, en Terraform.
@@ -36,18 +37,51 @@ Navigateur ──► CloudFront ──► S3 (front Vue compilé)
 | SSM Parameter Store | Réglages personnels (adresses e-mail) hors du dépôt |
 | IAM + OIDC GitHub | Déploiement depuis GitHub Actions sans clé d'accès stockée, groupe `shopimt-stock` en moindre privilège |
 
+## Solution EC2 (machines virtuelles)
+
+La même boutique (même front, même API, mêmes e-mails), sur des serveurs, à côté de la solution serverless :
+
+```
+Navigateur ──► CloudFront ──► ALB (2 zones) ──► Auto Scaling group : serveurs web t3.micro (Flask + gunicorn)
+                                                    │                       │
+                                                    ▼                       ▼
+                                     RDS MySQL 8.4 (sous-réseaux privés)   SNS ──► SQS ──┐
+                                                    ▲                                    ▼
+                                                    └──────── serveur de traitement t3.micro : workers + Apache Kafka (KRaft)
+                                                               │  topic « commandes » : groupes audit (S3) et e-mails (SES)
+```
+
+| Service | Rôle |
+| --- | --- |
+| VPC | 2 zones, sous-réseaux publics (ALB, serveurs) et privés (RDS, sans route Internet), endpoint Gateway S3 |
+| EC2, Auto Scaling | Serveurs web dans un groupe de 1 à 2 instances réparties sur 2 zones, montée en charge sur le CPU, remplacement automatique d'une instance malade, mise à jour progressive (instance refresh) |
+| Elastic Load Balancing (ALB) | Répartition de charge, contrôle de santé `/sante`, accepte seulement CloudFront (liste de préfixes + en-tête secret) |
+| RDS for MySQL | Catalogue, commandes, historique ; transaction avec `SELECT … FOR UPDATE` pour le stock, TLS obligatoire, chiffrement KMS |
+| SNS, SQS | `COMMANDE_CREEE` diffusé vers la file de traitement (long polling, DLQ) |
+| Apache Kafka sur EC2 | Flux du cycle de vie des commandes, deux groupes de consommateurs (audit S3, e-mails de suivi) ; MSK serait l'équivalent géré, hors Free Tier |
+| SSM | Mot de passe RDS en SecureString, Session Manager à la place de SSH |
+| CloudWatch | Agent (logs, mémoire), alarmes, récupération automatique du serveur de traitement, tableau de bord |
+
+- **Activation** : clé `solution_ec2` (`true`) du paramètre SSM `/shopimt/<env>/config`, puis `terraform apply`.
+  `false` détruit la solution EC2 sans toucher au serverless.
+- **Code** : `backend/ec2/` réutilise les modules des Lambdas (validation, numéros de commande, plan d'expédition, e-mails).
+- **Coût** : RDS, ALB et une instance sont dans le Free Tier 12 mois ; la 2e instance et les adresses IPv4 publiques
+  coûtent environ 0,60 $ par jour. À désactiver après la démonstration.
+
 ## Organisation du dépôt
 
 ```
 backend/
   lambdas/           Code des fonctions Lambda (une par fichier)
+  ec2/               Serveurs de la solution EC2 (web et traitement)
   tests/             Parcours complet avec un faux boto3 (pytest)
 frontend/            Vue 3, TypeScript, Vite, vue-i18n, Vue Router
   src/i18n/          Textes fr.ts et en.ts (mêmes clés, vérifié par TypeScript et un test)
   src/views/         Pages : boutique, suivi, compte, admin
   src/components/    NavBar, sélecteur de langue, carte produit, panier, fiche de suivi
 infra/
-  modules/boutique/  Toute l'infrastructure, paramétrée (préfixe, capacités…)
+  modules/boutique/  Solution serverless, paramétrée (préfixe, capacités…)
+  modules/ec2/       Solution EC2 : VPC, ALB, Auto Scaling, RDS, SNS/SQS, Kafka
   envs/dev/          Environnement dev : état S3 dev/terraform.tfstate
   envs/prod/         Environnement prod : état S3 prod/terraform.tfstate
   bootstrap/         Bucket d'état et rôles GitHub OIDC, créés une seule fois
