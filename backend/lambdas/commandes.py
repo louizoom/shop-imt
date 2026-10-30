@@ -246,8 +246,13 @@ def agenda(order_id):
     if not item or "livraison_estimee" not in item:
         return _rep(404, {"erreur": "commande introuvable"})
     c = {k: _deser.deserialize(v) for k, v in item.items()}
-    jour = datetime.date.fromisoformat(c["livraison_estimee"])
-    articles = ", ".join(f"{a['quantite']} x {a['nom']}" for a in json.loads(c["articles"]))
+    return reponse_agenda(order_id, c["livraison_estimee"], json.loads(c["articles"]), c["total"])
+
+
+def reponse_agenda(order_id, livraison_estimee, articles, total):
+    """Réponse .ics commune aux deux solutions (Lambda ici, serveur web de la solution EC2)."""
+    jour = datetime.date.fromisoformat(str(livraison_estimee))
+    articles = ", ".join(f"{a['quantite']} x {a['nom']}" for a in articles)
     lignes = [
         "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SHOP'IMT//Livraison//FR", "CALSCALE:GREGORIAN", "METHOD:PUBLISH",
         "BEGIN:VEVENT",
@@ -256,7 +261,7 @@ def agenda(order_id):
         f"DTSTART;VALUE=DATE:{jour:%Y%m%d}",
         f"DTEND;VALUE=DATE:{jour + datetime.timedelta(days=1):%Y%m%d}",
         "SUMMARY:" + _ics_texte("Livraison SHOP'IMT"),
-        "DESCRIPTION:" + _ics_texte(f"Commande {order_id}\n{articles}\nTotal : {Decimal(c['total']):.2f} EUR"),
+        "DESCRIPTION:" + _ics_texte(f"Commande {order_id}\n{articles}\nTotal : {Decimal(total):.2f} EUR"),
         "TRANSP:TRANSPARENT",
         "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + _ics_texte("Votre colis SHOP'IMT arrive aujourd'hui"),
         "TRIGGER:PT9H", "END:VALARM",   # rappel le jour même à 9 h
