@@ -89,6 +89,8 @@ infra/
   bootstrap/         Bucket d'état et rôles GitHub OIDC, créés une seule fois
 scripts/scenario.sh      Test de bout en bout de la solution serverless sur un environnement déployé
 scripts/scenario-ec2.sh  Même test pour la solution EC2
+scripts/autodestruction.sh  Nettoyage final du compte, lancé par le workflow Autodestruction (13/11/2026)
+scripts/destroy-env.sh   terraform destroy d'un environnement (même workflow)
 docs/                    Rapport de projet, LLD (PDF) et présentation
 GUIDE.md                 Guide pas à pas : rendus, démo, déploiement, tests, arrêt
 ```

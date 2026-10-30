@@ -1,6 +1,15 @@
 import type { Messages } from "./fr";
 
 const en: Messages = {
+  fermeture: {
+    annonce: "End of project: SHOP'IMT closes on {date}.",
+    reste: "Time left before closing",
+    j: "d",
+    h: "h",
+    min: "min",
+    s: "s",
+    ferme: "SHOP'IMT is closed. Thanks for visiting!",
+  },
   nav: {
     boutique: "Shop",
     suivre: "Track",
