@@ -8,6 +8,19 @@ Projet du cours AWS : boutique en ligne avec SNS et une file de messages, en Ter
 
 **Pour commencer : [GUIDE.md](GUIDE.md)** (rendus, démo, déploiement, scénarios de test, arrêt).
 
+## Où trouver chaque solution
+
+| | Solution EC2 (machines virtuelles) | Solution serverless |
+| --- | --- | --- |
+| Terraform | `infra/modules/ec2/` : VPC, ALB sur 2 zones, Auto Scaling, RDS MySQL, SNS/SQS, Kafka sur EC2 | `infra/modules/boutique/` : CloudFront, API Gateway, Lambda, DynamoDB, Step Functions, SNS/SQS |
+| Code | `backend/ec2/` : serveur web et serveur de traitement | `backend/lambdas/` : fonctions Lambda |
+| Test de bout en bout | `scripts/scenario-ec2.sh` | `scripts/scenario.sh` |
+| LLD | `docs/SHOP-IMT-EC2-LLD.pdf` | `docs/SHOP-IMT-LLD.pdf` |
+
+En commun : `infra/envs/{dev,prod}/` déploie les deux solutions ensemble, `frontend/` est le site servi par les
+deux, `docs/SHOP-IMT-rapport.pdf` est le rapport (LLD en annexes A et B) et `docs/SHOP-IMT-presentation.pptx` la
+présentation.
+
 ## Architecture
 
 ```
